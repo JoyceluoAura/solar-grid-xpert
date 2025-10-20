@@ -14,7 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sites: {
+        Row: {
+          address: string | null
+          azimuth: number | null
+          created_at: string
+          daily_load_kwh: number | null
+          days_of_autonomy: number | null
+          id: string
+          latitude: number
+          longitude: number
+          panel_efficiency: number | null
+          site_name: string
+          system_size_kwp: number | null
+          tilt_angle: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          azimuth?: number | null
+          created_at?: string
+          daily_load_kwh?: number | null
+          days_of_autonomy?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          panel_efficiency?: number | null
+          site_name: string
+          system_size_kwp?: number | null
+          tilt_angle?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          azimuth?: number | null
+          created_at?: string
+          daily_load_kwh?: number | null
+          days_of_autonomy?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          panel_efficiency?: number | null
+          site_name?: string
+          system_size_kwp?: number | null
+          tilt_angle?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
