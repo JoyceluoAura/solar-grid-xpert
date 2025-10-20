@@ -1,13 +1,16 @@
 import { Link, useLocation } from "react-router-dom";
-import { Sun, LayoutDashboard, Calculator, Activity, Settings } from "lucide-react";
+import { Sun, LayoutDashboard, MapPin, Activity, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const Navigation = () => {
   const location = useLocation();
+  const { signOut, user } = useAuth();
 
   const navItems = [
-    { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/evaluate", label: "Evaluate Site", icon: Calculator },
+    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/add-site", label: "Add Site", icon: MapPin },
     { path: "/monitor", label: "Monitor", icon: Activity },
     { path: "/settings", label: "Settings", icon: Settings },
   ];
@@ -16,7 +19,7 @@ const Navigation = () => {
     <nav className="border-b border-border bg-card shadow-card">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl">
+          <Link to="/dashboard" className="flex items-center gap-2 font-bold text-xl">
             <div className="w-10 h-10 rounded-lg gradient-solar flex items-center justify-center">
               <Sun className="w-6 h-6 text-white" />
             </div>
@@ -46,6 +49,17 @@ const Navigation = () => {
                 </Link>
               );
             })}
+            {user && (
+              <Button
+                onClick={signOut}
+                variant="ghost"
+                size="sm"
+                className="ml-2 text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            )}
           </div>
 
           <div className="flex md:hidden items-center gap-2">
