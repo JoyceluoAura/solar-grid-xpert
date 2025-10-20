@@ -8,35 +8,63 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base colors */
+    --background: 0 0% 98%;
+    --foreground: 210 15% 20%;
 
+    /* Card */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 210 15% 20%;
 
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 210 15% 20%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Energy Blue */
+    --primary: 201 100% 36%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Solar Orange */
+    --secondary: 38 93% 54%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted */
+    --muted: 210 20% 95%;
+    --muted-foreground: 210 10% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - Eco Green */
+    --accent: 91 41% 58%;
+    --accent-foreground: 210 15% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Border & Input */
+    --border: 210 20% 90%;
+    --input: 210 20% 90%;
+    --ring: 201 100% 36%;
 
-    --radius: 0.5rem;
+    /* Radius */
+    --radius: 0.75rem;
+
+    /* Custom Solar Theme Colors */
+    --solar-orange: 38 93% 54%;
+    --energy-blue: 201 100% 36%;
+    --eco-green: 91 41% 58%;
+    --panel-bg: 210 25% 98%;
+    --data-accent: 201 80% 45%;
+
+    /* Gradients */
+    --gradient-solar: linear-gradient(135deg, hsl(38 93% 54%) 0%, hsl(25 95% 55%) 100%);
+    --gradient-energy: linear-gradient(135deg, hsl(201 100% 36%) 0%, hsl(201 80% 45%) 100%);
+    --gradient-eco: linear-gradient(135deg, hsl(91 41% 58%) 0%, hsl(91 41% 48%) 100%);
+
+    /* Shadows */
+    --shadow-card: 0 2px 8px rgba(0, 119, 182, 0.08);
+    --shadow-elevated: 0 8px 24px rgba(0, 119, 182, 0.12);
+
+    /* Radius */
 
     --sidebar-background: 0 0% 98%;
 
@@ -56,33 +84,53 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Base colors */
+    --background: 210 20% 12%;
+    --foreground: 210 15% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    /* Card */
+    --card: 210 20% 15%;
+    --card-foreground: 210 15% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    /* Popover */
+    --popover: 210 20% 15%;
+    --popover-foreground: 210 15% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary - Energy Blue (brighter for dark mode) */
+    --primary: 201 90% 55%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary - Solar Orange */
+    --secondary: 38 93% 60%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* Muted */
+    --muted: 210 15% 20%;
+    --muted-foreground: 210 10% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent - Eco Green */
+    --accent: 91 41% 65%;
+    --accent-foreground: 210 20% 12%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Border & Input */
+    --border: 210 15% 25%;
+    --input: 210 15% 25%;
+    --ring: 201 90% 55%;
+
+    /* Custom Solar Theme Colors */
+    --solar-orange: 38 93% 60%;
+    --energy-blue: 201 90% 55%;
+    --eco-green: 91 41% 65%;
+    --panel-bg: 210 20% 18%;
+    --data-accent: 201 80% 60%;
+
+    /* Shadows */
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -100,6 +148,32 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gradient-solar {
+    background: var(--gradient-solar);
+  }
+  
+  .gradient-energy {
+    background: var(--gradient-energy);
+  }
+  
+  .gradient-eco {
+    background: var(--gradient-eco);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
   }
 }
