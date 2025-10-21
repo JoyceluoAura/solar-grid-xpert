@@ -164,6 +164,31 @@ const Dashboard = () => {
           />
         </div>
 
+        {/* AI Summary */}
+        <Card className="shadow-card border-solar-orange/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              🧠 AI Performance Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="p-4 rounded-lg bg-gradient-to-r from-solar-orange/10 to-energy-blue/10 border border-border">
+                <p className="text-sm font-semibold mb-2">Weekly Forecast</p>
+                <p className="text-sm text-muted-foreground">
+                  Predicted output for next week: <strong className="text-foreground">18% higher</strong> due to reduced cloud cover and optimal temperatures. Expected generation: 1,245 kWh.
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <p className="text-sm font-semibold mb-2">System Health</p>
+                <p className="text-sm text-muted-foreground">
+                  All systems operating normally. Battery health at 87%. Consider scheduling maintenance for optimal performance.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* 30-Day Forecast Chart */}
         <Card className="shadow-card">
           <CardHeader>

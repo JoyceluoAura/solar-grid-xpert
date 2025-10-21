@@ -10,8 +10,10 @@ const Navigation = () => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/add-site", label: "Add Site", icon: MapPin },
+    { path: "/weather", label: "Weather", icon: MapPin },
+    { path: "/sensors", label: "Sensors", icon: Activity },
     { path: "/monitor", label: "Monitor", icon: Activity },
+    { path: "/diagnostics", label: "Diagnostics", icon: Settings },
     { path: "/settings", label: "Settings", icon: Settings },
   ];
 

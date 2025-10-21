@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings as SettingsIcon, Key, Save } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Settings as SettingsIcon, Key, Save, Wifi } from "lucide-react";
 import { toast } from "sonner";
 
 const Settings = () => {
@@ -12,6 +13,18 @@ const Settings = () => {
     openWeatherApi: "",
     weatherbitApi: "",
     visualCrossingApi: "",
+  });
+
+  const [mqttConfig, setMqttConfig] = useState({
+    broker: "",
+    port: "1883",
+    username: "",
+    password: "",
+  });
+
+  const [preferences, setPreferences] = useState({
+    units: "metric",
+    darkMode: false,
   });
 
   const handleApiKeyChange = (field: string, value: string) => {
@@ -134,6 +147,103 @@ const Settings = () => {
               <Save className="w-4 h-4 mr-2" />
               Save Settings
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* IoT/MQTT Configuration */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wifi className="w-5 h-5 text-solar-orange" />
+              IoT/MQTT Configuration
+            </CardTitle>
+            <CardDescription>Configure MQTT broker for IoT sensor connectivity</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="mqttBroker">MQTT Broker URL</Label>
+                <Input
+                  id="mqttBroker"
+                  placeholder="e.g., mqtt://broker.hivemq.com"
+                  value={mqttConfig.broker}
+                  onChange={(e) => setMqttConfig({ ...mqttConfig, broker: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mqttPort">Port</Label>
+                <Input
+                  id="mqttPort"
+                  type="number"
+                  placeholder="1883"
+                  value={mqttConfig.port}
+                  onChange={(e) => setMqttConfig({ ...mqttConfig, port: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="mqttUsername">Username (Optional)</Label>
+                <Input
+                  id="mqttUsername"
+                  placeholder="MQTT username"
+                  value={mqttConfig.username}
+                  onChange={(e) => setMqttConfig({ ...mqttConfig, username: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mqttPassword">Password (Optional)</Label>
+                <Input
+                  id="mqttPassword"
+                  type="password"
+                  placeholder="MQTT password"
+                  value={mqttConfig.password}
+                  onChange={(e) => setMqttConfig({ ...mqttConfig, password: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <Button onClick={saveSettings} className="w-full gradient-energy text-white">
+              <Save className="w-4 h-4 mr-2" />
+              Save MQTT Configuration
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Preferences */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <SettingsIcon className="w-5 h-5 text-solar-orange" />
+              Preferences
+            </CardTitle>
+            <CardDescription>Customize your platform experience</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+              <div>
+                <p className="font-medium">Units</p>
+                <p className="text-sm text-muted-foreground">Metric (kWh, °C) / Imperial (BTU, °F)</p>
+              </div>
+              <Switch
+                checked={preferences.units === "metric"}
+                onCheckedChange={(checked) =>
+                  setPreferences({ ...preferences, units: checked ? "metric" : "imperial" })
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+              <div>
+                <p className="font-medium">Theme</p>
+                <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
+              </div>
+              <Switch
+                checked={preferences.darkMode}
+                onCheckedChange={(checked) => setPreferences({ ...preferences, darkMode: checked })}
+              />
+            </div>
           </CardContent>
         </Card>
 

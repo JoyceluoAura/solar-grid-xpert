@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          id: string
+          is_resolved: boolean | null
+          message: string
+          resolved_at: string | null
+          sensor_id: string | null
+          severity: string
+          site_id: string | null
+          user_id: string
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          id?: string
+          is_resolved?: boolean | null
+          message: string
+          resolved_at?: string | null
+          sensor_id?: string | null
+          severity: string
+          site_id?: string | null
+          user_id: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          id?: string
+          is_resolved?: boolean | null
+          message?: string
+          resolved_at?: string | null
+          sensor_id?: string | null
+          severity?: string
+          site_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_sensor_id_fkey"
+            columns: ["sensor_id"]
+            isOneToOne: false
+            referencedRelation: "sensors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -37,6 +91,94 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      sensor_readings: {
+        Row: {
+          id: string
+          metadata: Json | null
+          sensor_id: string
+          timestamp: string | null
+          unit: string
+          value: number
+        }
+        Insert: {
+          id?: string
+          metadata?: Json | null
+          sensor_id: string
+          timestamp?: string | null
+          unit: string
+          value: number
+        }
+        Update: {
+          id?: string
+          metadata?: Json | null
+          sensor_id?: string
+          timestamp?: string | null
+          unit?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_readings_sensor_id_fkey"
+            columns: ["sensor_id"]
+            isOneToOne: false
+            referencedRelation: "sensors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensors: {
+        Row: {
+          created_at: string | null
+          device_id: string
+          endpoint_url: string | null
+          id: string
+          last_reading_at: string | null
+          protocol: Database["public"]["Enums"]["sensor_protocol"]
+          sensor_name: string
+          sensor_type: Database["public"]["Enums"]["sensor_type"]
+          site_id: string | null
+          status: Database["public"]["Enums"]["sensor_status"] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_id: string
+          endpoint_url?: string | null
+          id?: string
+          last_reading_at?: string | null
+          protocol: Database["public"]["Enums"]["sensor_protocol"]
+          sensor_name: string
+          sensor_type: Database["public"]["Enums"]["sensor_type"]
+          site_id?: string | null
+          status?: Database["public"]["Enums"]["sensor_status"] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string
+          endpoint_url?: string | null
+          id?: string
+          last_reading_at?: string | null
+          protocol?: Database["public"]["Enums"]["sensor_protocol"]
+          sensor_name?: string
+          sensor_type?: Database["public"]["Enums"]["sensor_type"]
+          site_id?: string | null
+          status?: Database["public"]["Enums"]["sensor_status"] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensors_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sites: {
         Row: {
@@ -97,7 +239,17 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      sensor_protocol: "mqtt" | "modbus" | "http_api" | "websocket"
+      sensor_status: "online" | "offline" | "error"
+      sensor_type:
+        | "thermal"
+        | "inverter"
+        | "voltage"
+        | "irradiance"
+        | "environmental"
+        | "battery"
+        | "ev_charger"
+        | "camera"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -224,6 +376,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      sensor_protocol: ["mqtt", "modbus", "http_api", "websocket"],
+      sensor_status: ["online", "offline", "error"],
+      sensor_type: [
+        "thermal",
+        "inverter",
+        "voltage",
+        "irradiance",
+        "environmental",
+        "battery",
+        "ev_charger",
+        "camera",
+      ],
+    },
   },
 } as const
