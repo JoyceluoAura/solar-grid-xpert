@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Calculator, MapPin, Battery, Zap } from "lucide-react";
+import { Calculator, MapPin, Battery, Zap, Cloud, Droplets, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const Evaluate = () => {
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<L.Map | null>(null);
+  const marker = useRef<L.Marker | null>(null);
+
   const [formData, setFormData] = useState({
     siteName: "",
     latitude: "",
@@ -17,6 +24,8 @@ const Evaluate = () => {
     azimuth: "",
     dailyLoad: "",
     daysOfAutonomy: "",
+    lookbackYears: "10",
+    rainMmThreshold: "0.2",
   });
 
   const [results, setResults] = useState<{
@@ -26,21 +35,186 @@ const Evaluate = () => {
     inverterSize: number;
   } | null>(null);
 
+  const [weatherData, setWeatherData] = useState<{
+    forecast: Array<{
+      date: string;
+      chanceOfRain: number;
+      totalMm: number;
+      rainHours: number;
+    }>;
+    historical: {
+      probability: number;
+      monthlyBreakdown: Array<{ month: string; probability: number }>;
+    };
+  } | null>(null);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const calculateResults = () => {
-    // Simple mock calculation (would call NREL API in production)
+  const initializeMap = () => {
+    if (!mapContainer.current || map.current) return;
+
+    map.current = L.map(mapContainer.current).setView([-2.5, 118.0], 5);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map.current);
+  };
+
+  useEffect(() => {
+    setTimeout(() => initializeMap(), 100);
+    return () => {
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!map.current || !formData.latitude || !formData.longitude) return;
+
+    const lat = parseFloat(formData.latitude);
+    const lng = parseFloat(formData.longitude);
+
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    map.current.setView([lat, lng], 10);
+
+    if (marker.current) {
+      map.current.removeLayer(marker.current);
+    }
+
+    const customIcon = L.icon({
+      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
+
+    marker.current = L.marker([lat, lng], { icon: customIcon }).addTo(map.current);
+  }, [formData.latitude, formData.longitude]);
+
+  const fetchWeatherData = async (lat: number, lon: number, xDays: number) => {
+    try {
+      const lookbackYears = parseInt(formData.lookbackYears) || 10;
+      const rainThreshold = parseFloat(formData.rainMmThreshold) || 0.2;
+
+      // Fetch 7-day forecast
+      const forecastResponse = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_probability_max,precipitation_sum,precipitation_hours&forecast_days=7&timezone=auto`
+      );
+      const forecastData = await forecastResponse.json();
+
+      // Fetch historical data
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - 5);
+      const startDate = new Date();
+      startDate.setFullYear(startDate.getFullYear() - lookbackYears);
+
+      const historicalResponse = await fetch(
+        `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&daily=precipitation_sum&start_date=${startDate.toISOString().split("T")[0]}&end_date=${endDate.toISOString().split("T")[0]}&timezone=auto`
+      );
+      const historicalData = await historicalResponse.json();
+
+      // Process forecast
+      const forecast = forecastData.daily.time.map((date: string, i: number) => ({
+        date,
+        chanceOfRain: forecastData.daily.precipitation_probability_max[i] || 0,
+        totalMm: forecastData.daily.precipitation_sum[i] || 0,
+        rainHours: forecastData.daily.precipitation_hours[i] || 0,
+      }));
+
+      // Calculate rolling 7-day windows for historical data
+      const precipSums = historicalData.daily.precipitation_sum || [];
+      const dates = historicalData.daily.time || [];
+
+      if (precipSums.length < 30) {
+        toast.error("Insufficient historical data");
+        return;
+      }
+
+      const rainyDays = precipSums.map((sum: number | null) => (sum || 0) >= rainThreshold);
+      let rainyWeeks = 0;
+      let totalWindows = 0;
+      const monthlyData: { [key: string]: { rainy: number; total: number } } = {};
+
+      for (let i = 0; i <= rainyDays.length - 7; i++) {
+        const window = rainyDays.slice(i, i + 7);
+        const rainyCount = window.filter((r) => r).length;
+        totalWindows++;
+
+        if (rainyCount > xDays) {
+          rainyWeeks++;
+        }
+
+        const monthKey = dates[i].substring(0, 7); // YYYY-MM
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { rainy: 0, total: 0 };
+        }
+        monthlyData[monthKey].total++;
+        if (rainyCount > xDays) {
+          monthlyData[monthKey].rainy++;
+        }
+      }
+
+      const probability = totalWindows > 0 ? (rainyWeeks / totalWindows) * 100 : 0;
+
+      const monthlyBreakdown = Object.entries(monthlyData)
+        .slice(-12)
+        .map(([month, data]) => ({
+          month,
+          probability: data.total > 0 ? (data.rainy / data.total) * 100 : 0,
+        }));
+
+      setWeatherData({
+        forecast,
+        historical: {
+          probability: Math.round(probability * 10) / 10,
+          monthlyBreakdown,
+        },
+      });
+    } catch (error) {
+      console.error("Weather fetch error:", error);
+      toast.error("Failed to fetch weather data");
+    }
+  };
+
+  const calculateResults = async () => {
+    const lat = parseFloat(formData.latitude);
+    const lon = parseFloat(formData.longitude);
+    const xDays = parseInt(formData.daysOfAutonomy) || 0;
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      toast.error("Latitude must be between -90 and 90");
+      return;
+    }
+    if (isNaN(lon) || lon < -180 || lon > 180) {
+      toast.error("Longitude must be between -180 and 180");
+      return;
+    }
+    if (xDays < 0 || xDays >= 7) {
+      toast.error("Days of autonomy must be between 0 and 6");
+      return;
+    }
+
+    // Calculate solar estimates
     const systemSize = parseFloat(formData.systemSize) || 0;
     const panelEfficiency = (parseFloat(formData.panelEfficiency) || 100) / 100;
     const dailyLoad = parseFloat(formData.dailyLoad) || 0;
     const daysOfAutonomy = parseFloat(formData.daysOfAutonomy) || 0;
 
-    const dailyGeneration = systemSize * 4.5 * panelEfficiency; // Assuming 4.5 peak sun hours
+    const dailyGeneration = systemSize * 4.5 * panelEfficiency;
     const monthlyGeneration = dailyGeneration * 30;
-    const batteryCapacity = dailyLoad * daysOfAutonomy * 1.2; // 20% buffer
-    const inverterSize = systemSize * 1.1; // 10% oversizing
+    const batteryCapacity = dailyLoad * daysOfAutonomy * 1.2;
+    const inverterSize = systemSize * 1.1;
 
     setResults({
       dailyGeneration: Math.round(dailyGeneration * 10) / 10,
@@ -48,6 +222,9 @@ const Evaluate = () => {
       batteryCapacity: Math.round(batteryCapacity * 10) / 10,
       inverterSize: Math.round(inverterSize * 10) / 10,
     });
+
+    // Fetch weather data
+    await fetchWeatherData(lat, lon, xDays);
 
     toast.success("Site evaluation complete!");
   };
@@ -164,7 +341,7 @@ const Evaluate = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="daysOfAutonomy">Days of Autonomy</Label>
+                  <Label htmlFor="daysOfAutonomy">Days of Autonomy (X)</Label>
                   <Input
                     id="daysOfAutonomy"
                     type="number"
@@ -175,6 +352,37 @@ const Evaluate = () => {
                 </div>
               </div>
 
+              <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium">
+                  Advanced Options <ChevronDown className="w-4 h-4" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="lookbackYears">Lookback Years</Label>
+                      <Input
+                        id="lookbackYears"
+                        type="number"
+                        placeholder="e.g., 10"
+                        value={formData.lookbackYears}
+                        onChange={(e) => handleInputChange("lookbackYears", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rainMmThreshold">Rain Threshold (mm/day)</Label>
+                      <Input
+                        id="rainMmThreshold"
+                        type="number"
+                        step="0.1"
+                        placeholder="e.g., 0.2"
+                        value={formData.rainMmThreshold}
+                        onChange={(e) => handleInputChange("rainMmThreshold", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
               <Button onClick={calculateResults} className="w-full gradient-energy text-white">
                 <Calculator className="w-4 h-4 mr-2" />
                 Calculate Potential
@@ -183,70 +391,150 @@ const Evaluate = () => {
           </Card>
 
           {/* Results */}
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-solar-orange" />
-                Evaluation Results
-              </CardTitle>
-              <CardDescription>Estimated system performance and requirements</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {results ? (
-                <div className="space-y-6">
-                  <div className="p-6 rounded-xl bg-gradient-to-br from-solar-orange/10 to-solar-orange/5 border border-solar-orange/20">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Zap className="w-5 h-5 text-solar-orange" />
-                      <p className="text-sm font-medium text-muted-foreground">Daily Generation</p>
-                    </div>
-                    <p className="text-4xl font-bold text-foreground">{results.dailyGeneration} kWh</p>
-                  </div>
+          <div className="space-y-6">
+            {/* Map */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-solar-orange" />
+                  Site Location
+                </CardTitle>
+                <CardDescription>Visual representation of selected coordinates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div ref={mapContainer} className="h-[300px] rounded-lg border border-border" />
+              </CardContent>
+            </Card>
 
-                  <div className="p-6 rounded-xl bg-gradient-to-br from-energy-blue/10 to-energy-blue/5 border border-energy-blue/20">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Zap className="w-5 h-5 text-energy-blue" />
-                      <p className="text-sm font-medium text-muted-foreground">Monthly Generation</p>
-                    </div>
-                    <p className="text-4xl font-bold text-foreground">{results.monthlyGeneration} kWh</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-eco-green/10 to-eco-green/5 border border-eco-green/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Battery className="w-4 h-4 text-eco-green" />
-                        <p className="text-xs font-medium text-muted-foreground">Battery Capacity</p>
+            {/* Solar Results */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-solar-orange" />
+                  Solar Performance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {results ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-solar-orange/10 to-solar-orange/5 border border-solar-orange/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap className="w-4 h-4 text-solar-orange" />
+                          <p className="text-xs font-medium text-muted-foreground">Daily Generation</p>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">{results.dailyGeneration} kWh</p>
                       </div>
-                      <p className="text-2xl font-bold text-foreground">{results.batteryCapacity} kWh</p>
-                    </div>
 
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-data-accent/10 to-data-accent/5 border border-data-accent/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Zap className="w-4 h-4 text-data-accent" />
-                        <p className="text-xs font-medium text-muted-foreground">Inverter Size</p>
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-energy-blue/10 to-energy-blue/5 border border-energy-blue/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap className="w-4 h-4 text-energy-blue" />
+                          <p className="text-xs font-medium text-muted-foreground">Monthly Generation</p>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">{results.monthlyGeneration} kWh</p>
                       </div>
-                      <p className="text-2xl font-bold text-foreground">{results.inverterSize} kW</p>
+
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-eco-green/10 to-eco-green/5 border border-eco-green/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Battery className="w-4 h-4 text-eco-green" />
+                          <p className="text-xs font-medium text-muted-foreground">Battery Capacity</p>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">{results.batteryCapacity} kWh</p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-gradient-to-br from-data-accent/10 to-data-accent/5 border border-data-accent/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap className="w-4 h-4 text-data-accent" />
+                          <p className="text-xs font-medium text-muted-foreground">Inverter Size</p>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">{results.inverterSize} kW</p>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="p-4 rounded-xl bg-muted/50 border border-border">
-                    <p className="text-sm text-muted-foreground">
-                      <strong className="text-foreground">Note:</strong> These are estimated values based on standard
-                      assumptions. For production deployment, integrate with NREL PVWatts API for accurate solar
-                      radiation data.
-                    </p>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[200px] text-center">
+                    <Calculator className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                    <p className="text-sm text-muted-foreground">Enter coordinates and calculate to see results</p>
                   </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-[500px] text-center">
-                  <MapPin className="w-16 h-16 text-muted-foreground/50 mb-4" />
-                  <p className="text-lg font-medium text-muted-foreground">No evaluation yet</p>
-                  <p className="text-sm text-muted-foreground/80 mt-2">
-                    Fill in the form and click "Calculate Potential" to see results
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Weather Forecast */}
+            {weatherData && (
+              <>
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Cloud className="w-5 h-5 text-energy-blue" />
+                      Next 7 Days Forecast
+                    </CardTitle>
+                    <CardDescription>Precipitation probability and expected rainfall</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {weatherData.forecast.map((day, i) => (
+                        <div key={i} className="flex items-center gap-4 p-3 rounded-lg bg-muted/30 border border-border">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{new Date(day.date).toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Droplets className="w-4 h-4 text-energy-blue" />
+                            <span className="text-sm font-semibold text-energy-blue">{day.chanceOfRain}%</span>
+                          </div>
+                          <div className="text-sm text-muted-foreground">{day.totalMm.toFixed(1)} mm</div>
+                          <div className="text-sm text-muted-foreground">{day.rainHours.toFixed(1)} hrs</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Droplets className="w-5 h-5 text-eco-green" />
+                      Historical Rain Analysis
+                    </CardTitle>
+                    <CardDescription>
+                      Probability of having &gt; {formData.daysOfAutonomy} rainy days in a week
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-6 rounded-xl bg-gradient-to-br from-eco-green/10 to-eco-green/5 border border-eco-green/20">
+                      <p className="text-sm text-muted-foreground mb-2">Historical Likelihood</p>
+                      <p className="text-4xl font-bold text-foreground">{weatherData.historical.probability}%</p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        of weeks had &gt; {formData.daysOfAutonomy} rainy days (≥{formData.rainMmThreshold}mm/day)
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-medium mb-3">Monthly Breakdown (Last 12 Months)</p>
+                      <div className="space-y-2">
+                        {weatherData.historical.monthlyBreakdown.map((month, i) => (
+                          <div key={i} className="flex items-center gap-3">
+                            <span className="text-xs text-muted-foreground w-20">{month.month}</span>
+                            <div className="flex-1 h-6 bg-muted/30 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-eco-green to-energy-blue rounded-full"
+                                style={{ width: `${month.probability}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium w-12 text-right">{month.probability.toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-muted/50 border border-border text-xs text-muted-foreground">
+                      Weather data by <strong>Open-Meteo</strong>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
