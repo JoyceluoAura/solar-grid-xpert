@@ -39,7 +39,7 @@ const AddSite = () => {
     if (!mapContainer.current || map.current) return;
 
     // Initialize Leaflet map with OpenStreetMap tiles
-    map.current = L.map(mapContainer.current).setView([39.8283, -98.5795], 4);
+    map.current = L.map(mapContainer.current).setView([-2.5, 118.0], 5);
 
     // Add OpenStreetMap tile layer with proper attribution
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
