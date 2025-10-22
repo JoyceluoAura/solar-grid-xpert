@@ -8,18 +8,16 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const AddSite = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const marker = useRef<mapboxgl.Marker | null>(null);
+  const map = useRef<L.Map | null>(null);
+  const marker = useRef<L.Marker | null>(null);
 
-  const [mapboxToken, setMapboxToken] = useState("");
-  const [showTokenInput, setShowTokenInput] = useState(true);
   const [formData, setFormData] = useState({
     siteName: "",
     address: "",
@@ -37,23 +35,21 @@ const AddSite = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const initializeMap = (token: string) => {
-    if (!mapContainer.current) return;
+  const initializeMap = () => {
+    if (!mapContainer.current || map.current) return;
 
-    mapboxgl.accessToken = token;
+    // Initialize Leaflet map with OpenStreetMap tiles
+    map.current = L.map(mapContainer.current).setView([39.8283, -98.5795], 4);
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: [-98.5795, 39.8283], // Center of USA
-      zoom: 4,
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
+    // Add OpenStreetMap tile layer with proper attribution
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map.current);
 
     // Add click handler to place marker
     map.current.on("click", (e) => {
-      const { lng, lat } = e.lngLat;
+      const { lat, lng } = e.latlng;
 
       // Update form data
       setFormData((prev) => ({
@@ -64,23 +60,34 @@ const AddSite = () => {
 
       // Place marker
       if (marker.current) {
-        marker.current.remove();
+        map.current?.removeLayer(marker.current);
       }
 
-      marker.current = new mapboxgl.Marker({ color: "#F79E1B" })
-        .setLngLat([lng, lat])
-        .addTo(map.current!);
+      // Create custom icon
+      const customIcon = L.icon({
+        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+      });
 
-      // Reverse geocode to get address
-      fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}`
-      )
+      marker.current = L.marker([lat, lng], { icon: customIcon }).addTo(map.current!);
+
+      // Reverse geocode using Nominatim (OSM service)
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+        headers: {
+          "User-Agent": "SolarGridX/1.0 (Solar monitoring platform)",
+        },
+      })
         .then((res) => res.json())
         .then((data) => {
-          if (data.features && data.features.length > 0) {
+          if (data.display_name) {
             setFormData((prev) => ({
               ...prev,
-              address: data.features[0].place_name,
+              address: data.display_name,
             }));
           }
         })
@@ -88,26 +95,15 @@ const AddSite = () => {
     });
   };
 
-  const handleTokenSubmit = () => {
-    if (mapboxToken.trim()) {
-      localStorage.setItem("mapbox_token", mapboxToken);
-      setShowTokenInput(false);
-      initializeMap(mapboxToken);
-    } else {
-      toast.error("Please enter a valid Mapbox token");
-    }
-  };
-
   useEffect(() => {
-    const savedToken = localStorage.getItem("mapbox_token");
-    if (savedToken) {
-      setMapboxToken(savedToken);
-      setShowTokenInput(false);
-      setTimeout(() => initializeMap(savedToken), 100);
-    }
+    // Initialize map on mount
+    setTimeout(() => initializeMap(), 100);
 
     return () => {
-      if (map.current) map.current.remove();
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
   }, []);
 
@@ -167,48 +163,17 @@ const AddSite = () => {
               <CardDescription>Click on the map to select your site location</CardDescription>
             </CardHeader>
             <CardContent>
-              {showTokenInput ? (
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg bg-muted/50 border border-border">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      To use the interactive map, you need a Mapbox public token. Get one for free at{" "}
-                      <a
-                        href="https://mapbox.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-energy-blue hover:underline"
-                      >
-                        mapbox.com
-                      </a>
+              <div>
+                <div ref={mapContainer} className="h-[400px] rounded-lg border border-border" />
+                {formData.latitude && formData.longitude && (
+                  <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border">
+                    <p className="text-sm font-medium">
+                      Selected: {formData.latitude}, {formData.longitude}
                     </p>
-                    <div className="space-y-2">
-                      <Label htmlFor="mapboxToken">Mapbox Public Token</Label>
-                      <Input
-                        id="mapboxToken"
-                        type="text"
-                        placeholder="pk.eyJ1..."
-                        value={mapboxToken}
-                        onChange={(e) => setMapboxToken(e.target.value)}
-                      />
-                    </div>
-                    <Button onClick={handleTokenSubmit} className="w-full mt-4 gradient-energy text-white">
-                      Load Map
-                    </Button>
+                    {formData.address && <p className="text-xs text-muted-foreground mt-1">{formData.address}</p>}
                   </div>
-                </div>
-              ) : (
-                <div>
-                  <div ref={mapContainer} className="h-[400px] rounded-lg border border-border" />
-                  {formData.latitude && formData.longitude && (
-                    <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border">
-                      <p className="text-sm font-medium">
-                        Selected: {formData.latitude}, {formData.longitude}
-                      </p>
-                      {formData.address && <p className="text-xs text-muted-foreground mt-1">{formData.address}</p>}
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
 
