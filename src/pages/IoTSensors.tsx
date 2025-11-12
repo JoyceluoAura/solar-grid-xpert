@@ -904,9 +904,9 @@ const IoTSensors = () => {
               </div>
             </CardContent>
           </Card>
-        )
+        )}
 
-{/* Tabs for Data vs Visual */}
+        {/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="data">
