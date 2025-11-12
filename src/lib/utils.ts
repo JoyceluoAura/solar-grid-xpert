@@ -16,17 +16,18 @@ export function formatIDR(amount: number): string {
 
 export function formatJakartaTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('id-ID', {
+  const time = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   }).format(d);
+  return `${time} WIB`;
 }
 
 export function formatJakartaDateTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return new Intl.DateTimeFormat('id-ID', {
+  const dateTime = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: '2-digit',
@@ -35,4 +36,5 @@ export function formatJakartaDateTime(date: Date | string): string {
     minute: '2-digit',
     hour12: false,
   }).format(d);
+  return `${dateTime} WIB`;
 }
