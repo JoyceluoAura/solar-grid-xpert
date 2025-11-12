@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,9 +13,11 @@ const Evaluate = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const marker = useRef<L.Marker | null>(null);
+  const addressContainerRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     siteName: "",
+    address: "",
     latitude: "",
     longitude: "",
     systemSize: "",
@@ -27,6 +29,11 @@ const Evaluate = () => {
     lookbackYears: "10",
     rainMmThreshold: "0.2",
   });
+
+  const [addressSuggestions, setAddressSuggestions] = useState<
+    Array<{ display_name: string; lat: string; lon: string }>
+  >([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [results, setResults] = useState<{
     dailyGeneration: number;
@@ -52,6 +59,40 @@ const Evaluate = () => {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const fetchAddressSuggestions = async (query: string) => {
+    if (query.length < 3) {
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`
+      );
+      const data = await response.json();
+      setAddressSuggestions(data);
+      setShowSuggestions(data.length > 0);
+    } catch (error) {
+      console.error("Address search error:", error);
+    }
+  };
+
+  const handleAddressChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, address: value }));
+  };
+
+  const handleAddressSelect = (suggestion: { display_name: string; lat: string; lon: string }) => {
+    setFormData((prev) => ({
+      ...prev,
+      address: suggestion.display_name,
+      latitude: suggestion.lat,
+      longitude: suggestion.lon,
+    }));
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
   };
 
   const initializeMap = () => {
@@ -101,6 +142,34 @@ const Evaluate = () => {
 
     marker.current = L.marker([lat, lng], { icon: customIcon }).addTo(map.current);
   }, [formData.latitude, formData.longitude]);
+
+  // Debounce address input
+  useEffect(() => {
+    if (!formData.address) return;
+
+    const timeoutId = setTimeout(() => {
+      fetchAddressSuggestions(formData.address);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.address]);
+
+  // Click outside to close suggestions
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        addressContainerRef.current &&
+        !addressContainerRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const fetchWeatherData = async (lat: number, lon: number, xDays: number) => {
     try {
@@ -260,27 +329,41 @@ const Evaluate = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude</Label>
-                  <Input
-                    id="latitude"
-                    type="number"
-                    placeholder="e.g., 37.7749"
-                    value={formData.latitude}
-                    onChange={(e) => handleInputChange("latitude", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude</Label>
-                  <Input
-                    id="longitude"
-                    type="number"
-                    placeholder="e.g., -122.4194"
-                    value={formData.longitude}
-                    onChange={(e) => handleInputChange("longitude", e.target.value)}
-                  />
-                </div>
+              <div className="space-y-2 relative" ref={addressContainerRef}>
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  placeholder="e.g., Jakarta, Indonesia or 123 Main St, City"
+                  value={formData.address}
+                  onChange={(e) => handleAddressChange(e.target.value)}
+                  onFocus={() => {
+                    if (addressSuggestions.length > 0) {
+                      setShowSuggestions(true);
+                    }
+                  }}
+                  autoComplete="off"
+                />
+                {showSuggestions && addressSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {addressSuggestions.map((suggestion, index) => (
+                      <div
+                        key={index}
+                        className="p-3 hover:bg-muted cursor-pointer border-b border-border last:border-b-0 text-sm"
+                        onClick={() => handleAddressSelect(suggestion)}
+                      >
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                          <span>{suggestion.display_name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {formData.latitude && formData.longitude && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Coordinates: {parseFloat(formData.latitude).toFixed(4)}, {parseFloat(formData.longitude).toFixed(4)}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
