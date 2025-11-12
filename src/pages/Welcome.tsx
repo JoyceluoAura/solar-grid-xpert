@@ -2,9 +2,11 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Sun, Zap, TrendingUp, MapPin, Cloud, Activity, BarChart3, Wifi, Camera, Network, Database } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { useState } from "react";
 
 const Welcome = () => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<"ai" | "iot" | "visual">("ai");
 
   // Mock data for demo preview
   const mockData = Array.from({ length: 20 }, (_, i) => ({
@@ -159,51 +161,154 @@ const Welcome = () => {
           </div>
           <div className="rounded-2xl border-2 border-border shadow-elevated bg-card overflow-hidden">
             <div className="border-b border-border bg-muted/30 p-4 flex gap-2">
-              <div className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">
+              <button
+                onClick={() => setActiveTab("ai")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "ai"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
                 AI Analysis
-              </div>
-              <div className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted">
+              </button>
+              <button
+                onClick={() => setActiveTab("iot")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "iot"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
                 IoT Sensors
-              </div>
-              <div className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted">
+              </button>
+              <button
+                onClick={() => setActiveTab("visual")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "visual"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
                 Visual Monitoring
-              </div>
+              </button>
             </div>
             <div className="p-8 space-y-6">
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-solar-orange/10 to-transparent border border-solar-orange/20">
-                  <div className="text-sm text-muted-foreground">System Health</div>
-                  <div className="text-4xl font-bold text-solar-orange">71.4</div>
-                  <div className="text-sm text-amber-500">Needs attention</div>
-                </div>
-                <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20">
-                  <div className="text-sm text-muted-foreground">kWh Loss (7d)</div>
-                  <div className="text-4xl font-bold text-red-500">521.3</div>
-                  <div className="text-sm text-red-400">37.2% efficiency drop</div>
-                </div>
-                <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-energy-blue/10 to-transparent border border-energy-blue/20">
-                  <div className="text-sm text-muted-foreground">AI Confidence</div>
-                  <div className="text-4xl font-bold text-energy-blue">92.5%</div>
-                  <div className="text-sm text-eco-green">High accuracy • 24h data</div>
-                </div>
-              </div>
-              <div className="p-4 rounded-lg bg-muted/30 border border-border">
-                <div className="text-sm font-semibold mb-3">AI Performance Insights</div>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-start gap-2">
-                    <span className="text-purple-500">●</span>
-                    <span>System performing below expected baseline for current weather conditions</span>
+              {activeTab === "ai" && (
+                <>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-solar-orange/10 to-transparent border border-solar-orange/20">
+                      <div className="text-sm text-muted-foreground">System Health</div>
+                      <div className="text-4xl font-bold text-solar-orange">71.4</div>
+                      <div className="text-sm text-amber-500">Needs attention</div>
+                    </div>
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20">
+                      <div className="text-sm text-muted-foreground">kWh Loss (7d)</div>
+                      <div className="text-4xl font-bold text-red-500">521.3</div>
+                      <div className="text-sm text-red-400">37.2% efficiency drop</div>
+                    </div>
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-energy-blue/10 to-transparent border border-energy-blue/20">
+                      <div className="text-sm text-muted-foreground">AI Confidence</div>
+                      <div className="text-4xl font-bold text-energy-blue">92.5%</div>
+                      <div className="text-sm text-eco-green">High accuracy • 24h data</div>
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-eco-green">●</span>
-                    <span>Optimal cleaning window detected in next 48 hours - potential +12% efficiency gain</span>
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="text-sm font-semibold mb-3">AI Performance Insights</div>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-start gap-2">
+                        <span className="text-purple-500">●</span>
+                        <span>System performing below expected baseline for current weather conditions</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-eco-green">●</span>
+                        <span>Optimal cleaning window detected in next 48 hours - potential +12% efficiency gain</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="text-energy-blue">●</span>
+                        <span>Weather pattern analysis suggests increased output (+8%) over next 3 days</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <span className="text-energy-blue">●</span>
-                    <span>Weather pattern analysis suggests increased output (+8%) over next 3 days</span>
+                </>
+              )}
+              
+              {activeTab === "iot" && (
+                <>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-energy-blue/10 to-transparent border border-energy-blue/20">
+                      <div className="text-sm text-muted-foreground">Power Output</div>
+                      <div className="text-4xl font-bold text-energy-blue">62.4 kW</div>
+                      <div className="text-sm text-eco-green">Operating normally</div>
+                    </div>
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-eco-green/10 to-transparent border border-eco-green/20">
+                      <div className="text-sm text-muted-foreground">Battery SOC</div>
+                      <div className="text-4xl font-bold text-eco-green">87%</div>
+                      <div className="text-sm text-eco-green">Charging</div>
+                    </div>
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-solar-orange/10 to-transparent border border-solar-orange/20">
+                      <div className="text-sm text-muted-foreground">Temperature</div>
+                      <div className="text-4xl font-bold text-solar-orange">42°C</div>
+                      <div className="text-sm text-muted-foreground">Panel temp</div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="text-sm font-semibold mb-3">Active IoT Devices</div>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-start gap-2">
+                        <Wifi className="w-4 h-4 text-eco-green mt-0.5" />
+                        <span>MQTT Gateway: 8 sensors connected via 5G network</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Activity className="w-4 h-4 text-energy-blue mt-0.5" />
+                        <span>Modbus RTU: Power meter & inverter data streaming</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Database className="w-4 h-4 text-purple-500 mt-0.5" />
+                        <span>Low-power mode: 3 sensors, offline cache: 12h data buffer</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {activeTab === "visual" && (
+                <>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-eco-green/10 to-transparent border border-eco-green/20">
+                      <div className="text-sm text-muted-foreground">Panels Inspected</div>
+                      <div className="text-4xl font-bold text-eco-green">156</div>
+                      <div className="text-sm text-eco-green">Last scan: 2h ago</div>
+                    </div>
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-amber-500/10 to-transparent border border-amber-500/20">
+                      <div className="text-sm text-muted-foreground">Issues Detected</div>
+                      <div className="text-4xl font-bold text-amber-500">7</div>
+                      <div className="text-sm text-amber-500">Requires maintenance</div>
+                    </div>
+                    <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-energy-blue/10 to-transparent border border-energy-blue/20">
+                      <div className="text-sm text-muted-foreground">Detection Accuracy</div>
+                      <div className="text-4xl font-bold text-energy-blue">96.2%</div>
+                      <div className="text-sm text-eco-green">AI confidence</div>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="text-sm font-semibold mb-3">AI Vision Detection Results</div>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-start gap-2">
+                        <Camera className="w-4 h-4 text-amber-500 mt-0.5" />
+                        <span>Soiling detected on 4 panels - cleaning recommended for +8% efficiency</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Camera className="w-4 h-4 text-red-500 mt-0.5" />
+                        <span>Hotspot identified on panel A-23 - immediate inspection required</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Camera className="w-4 h-4 text-amber-500 mt-0.5" />
+                        <span>Minor crack detected on 2 panels - monitor for progression</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
