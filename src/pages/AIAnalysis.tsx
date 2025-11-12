@@ -41,8 +41,6 @@ import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
 import { solarIssueService, SolarIssue } from "@/services/solarIssues";
 import { nasaPowerService } from "@/services/nasaPower";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-
 // Type definitions
 interface OverviewData {
   health_score: number;

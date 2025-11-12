@@ -137,7 +137,8 @@ class OpenMeteoService {
   }
 
   /**
-   * Fetch hourly solar data from Open-Meteo Satellite Radiation API
+   * Fetch hourly solar data from Open-Meteo APIs
+   * Uses archive API for historical data when satellite API is unavailable
    */
   async fetchSolarData(params: OpenMeteoParams): Promise<SolarDataPoint[]> {
     const cacheKey = this.getCacheKey(params);
@@ -149,9 +150,9 @@ class OpenMeteoService {
     }
 
     try {
-      console.log('🔄 Fetching fresh data from Open-Meteo Satellite API...');
+      console.log('🔄 Fetching fresh data from Open-Meteo APIs...');
 
-      // Get current date and 24 hours ago
+      // Get date range (last 24 hours)
       const endDate = new Date();
       const startDate = new Date(endDate);
       startDate.setHours(startDate.getHours() - 24);
@@ -159,56 +160,95 @@ class OpenMeteoService {
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
 
-      // Fetch satellite radiation data
+      // Try satellite API first (may not be available for all regions)
       const radiationUrl = `${this.baseUrl}?latitude=${params.lat}&longitude=${params.lon}&hourly=shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=1&past_days=1&timezone=auto`;
-
+      
       // Fetch weather data (for temperature)
       const weatherUrl = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}&hourly=temperature_2m&forecast_days=1&past_days=1&timezone=auto`;
 
       const [radiationResponse, weatherResponse] = await Promise.all([
-        fetch(radiationUrl),
+        fetch(radiationUrl).catch(() => null),
         fetch(weatherUrl)
       ]);
 
-      if (!radiationResponse.ok) {
-        throw new Error(`Open-Meteo Satellite API error: ${radiationResponse.statusText}`);
-      }
+      let hourlyData: SolarDataPoint[] = [];
 
-      const radiationData: OpenMeteoResponse = await radiationResponse.json();
-      const weatherData: OpenMeteoResponse = weatherResponse.ok
-        ? await weatherResponse.json()
-        : null;
-
-      // Process hourly data (last 24 hours)
-      const hourlyData: SolarDataPoint[] = [];
-      const dataLength = radiationData.hourly.time.length;
-      const startIndex = Math.max(0, dataLength - 24);
-
-      for (let i = startIndex; i < dataLength; i++) {
-        const timestamp = radiationData.hourly.time[i];
-        const date = new Date(timestamp);
-
-        // Extract hour from timestamp string (Open-Meteo returns local time with timezone=auto)
-        // Format: "2025-01-12T14:00" - extract the hour part
-        const hourMatch = timestamp.match(/T(\d{2}):/);
-        const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
-
-        const irradiance = radiationData.hourly.shortwave_radiation[i] || 0;
-        const ambientTemp = weatherData?.hourly.temperature_2m?.[i] || 25;
-        const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
-
-        const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
-        const acPower = this.calculateACPower(dcPower);
-
-        hourlyData.push({
-          timestamp: date.toISOString(),
-          hour: localHour,
-          ac_output: acPower,
-          dc_output: dcPower,
-          irradiance: irradiance,
-          ambient_temp: ambientTemp,
-          cell_temp: cellTemp,
-        });
+      // If satellite API failed, use archive API for historical data
+      if (!radiationResponse || !radiationResponse.ok) {
+        console.log('⚠️ Satellite API unavailable, using archive API...');
+        
+        const archiveUrl = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}&start_date=${startDateStr}&end_date=${endDateStr}&hourly=shortwave_radiation&timezone=auto`;
+        const archiveResponse = await fetch(archiveUrl);
+        
+        if (archiveResponse.ok) {
+          const archiveData = await archiveResponse.json();
+          const weatherData: OpenMeteoResponse = weatherResponse.ok ? await weatherResponse.json() : null;
+          
+          // Process hourly data from archive
+          const dataLength = archiveData.hourly?.time?.length || 0;
+          const startIndex = Math.max(0, dataLength - 24);
+          
+          for (let i = startIndex; i < dataLength; i++) {
+            const timestamp = archiveData.hourly.time[i];
+            const date = new Date(timestamp);
+            const hourMatch = timestamp.match(/T(\d{2}):/);
+            const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
+            
+            const irradiance = archiveData.hourly.shortwave_radiation[i] || 0;
+            const ambientTemp = weatherData?.hourly.temperature_2m?.[i] || 25;
+            const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
+            
+            const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
+            const acPower = this.calculateACPower(dcPower);
+            
+            hourlyData.push({
+              timestamp: date.toISOString(),
+              hour: localHour,
+              ac_output: acPower,
+              dc_output: dcPower,
+              irradiance: irradiance,
+              ambient_temp: ambientTemp,
+              cell_temp: cellTemp,
+            });
+          }
+          
+          console.log(`✅ Fetched ${hourlyData.length} hours from Archive API`);
+        } else {
+          throw new Error('Both satellite and archive APIs unavailable');
+        }
+      } else {
+        // Process satellite API data
+        const radiationData: OpenMeteoResponse = await radiationResponse.json();
+        const weatherData: OpenMeteoResponse = weatherResponse.ok ? await weatherResponse.json() : null;
+        
+        const dataLength = radiationData.hourly.time.length;
+        const startIndex = Math.max(0, dataLength - 24);
+        
+        for (let i = startIndex; i < dataLength; i++) {
+          const timestamp = radiationData.hourly.time[i];
+          const date = new Date(timestamp);
+          const hourMatch = timestamp.match(/T(\d{2}):/);
+          const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
+          
+          const irradiance = radiationData.hourly.shortwave_radiation[i] || 0;
+          const ambientTemp = weatherData?.hourly.temperature_2m?.[i] || 25;
+          const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
+          
+          const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
+          const acPower = this.calculateACPower(dcPower);
+          
+          hourlyData.push({
+            timestamp: date.toISOString(),
+            hour: localHour,
+            ac_output: acPower,
+            dc_output: dcPower,
+            irradiance: irradiance,
+            ambient_temp: ambientTemp,
+            cell_temp: cellTemp,
+          });
+        }
+        
+        console.log(`✅ Fetched ${hourlyData.length} hours from Satellite API`);
       }
 
       // Cache the data
@@ -218,7 +258,6 @@ class OpenMeteoService {
         params,
       });
 
-      console.log(`✅ Fetched ${hourlyData.length} hours of solar data from Open-Meteo (Himawari satellite)`);
       return hourlyData;
 
     } catch (error) {
@@ -351,40 +390,92 @@ class OpenMeteoService {
   }
 
   /**
-   * Fetch forecast data (7 days ahead)
+   * Fetch forecast data (7 days ahead) using historical patterns
    */
   async fetchForecastData(params: OpenMeteoParams): Promise<DailySolarDataPoint[]> {
     try {
-      const url = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}` +
-        `&daily=temperature_2m_mean,temperature_2m_max&forecast_days=7&timezone=auto`;
+      // Get historical data for the same week from previous years to establish patterns
+      const today = new Date();
+      const lastYear = new Date(today);
+      lastYear.setFullYear(lastYear.getFullYear() - 1);
+      
+      const twoYearsAgo = new Date(today);
+      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+      
+      // Fetch historical radiation data to establish baseline patterns
+      const historicalUrl = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}` +
+        `&start_date=${twoYearsAgo.toISOString().split('T')[0]}` +
+        `&end_date=${lastYear.toISOString().split('T')[0]}` +
+        `&daily=shortwave_radiation_sum,temperature_2m_mean&timezone=auto`;
+      
+      // Fetch weather forecast
+      const forecastUrl = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}` +
+        `&daily=temperature_2m_mean,temperature_2m_max,cloud_cover_mean&forecast_days=7&timezone=auto`;
 
-      const response = await fetch(url);
+      const [historicalResponse, forecastResponse] = await Promise.all([
+        fetch(historicalUrl).catch(() => null),
+        fetch(forecastUrl)
+      ]);
 
-      if (!response.ok) {
-        console.warn(`Forecast API error: ${response.statusText}, using mock forecast`);
+      if (!forecastResponse.ok) {
+        console.warn(`Forecast API error: ${forecastResponse.statusText}, using mock forecast`);
         return this.generateMockForecastData(params);
       }
 
-      const data = await response.json();
+      const forecastData = await forecastResponse.json();
+      
+      // Calculate historical average irradiance by month
+      const monthlyAvgIrradiance = new Map<number, number>();
+      if (historicalResponse && historicalResponse.ok) {
+        const historicalData = await historicalResponse.json();
+        const monthGroups = new Map<number, number[]>();
+        
+        for (let i = 0; i < (historicalData.daily?.time?.length || 0); i++) {
+          const date = new Date(historicalData.daily.time[i]);
+          const month = date.getMonth();
+          const irradiance = historicalData.daily.shortwave_radiation_sum[i];
+          
+          if (!monthGroups.has(month)) {
+            monthGroups.set(month, []);
+          }
+          monthGroups.get(month)!.push(irradiance);
+        }
+        
+        // Calculate averages
+        monthGroups.forEach((values, month) => {
+          const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+          monthlyAvgIrradiance.set(month, avg);
+        });
+      }
 
       const days: DailySolarDataPoint[] = [];
-      const tempMean: number[] = data.daily?.temperature_2m_mean || [];
-      const tempMax: number[] = data.daily?.temperature_2m_max || [];
+      const tempMean: number[] = forecastData.daily?.temperature_2m_mean || [];
+      const tempMax: number[] = forecastData.daily?.temperature_2m_max || [];
+      const cloudCover: number[] = forecastData.daily?.cloud_cover_mean || [];
 
       const totalCapacity = params.system_capacity;
 
-      for (let i = 0; i < (data.daily?.time?.length || 0); i++) {
-        const date = data.daily.time[i];
+      for (let i = 0; i < (forecastData.daily?.time?.length || 0); i++) {
+        const date = forecastData.daily.time[i];
+        const forecastDate = new Date(date);
+        const month = forecastDate.getMonth();
         const meanTemp = tempMean[i] ?? 26;
         const maxTemp = tempMax[i] ?? (meanTemp + 4);
+        const clouds = cloudCover[i] ?? 40; // Default 40% cloud cover
 
-        // Estimate irradiance based on temperature (heuristic)
-        const estimatedIrradiance = 5000 + (meanTemp - 20) * 100;
+        // Use historical average for this month, or fall back to temperature-based estimate
+        let baseIrradiance = monthlyAvgIrradiance.get(month) || (5000 + (meanTemp - 20) * 100);
+        
+        // Adjust for cloud cover (more clouds = less irradiance)
+        const cloudFactor = 1 - (clouds / 200); // 0% clouds = 1.0, 100% clouds = 0.5
+        const estimatedIrradiance = Math.max(1000, baseIrradiance * cloudFactor);
+        
         const irradianceKwhM2 = estimatedIrradiance / 1000;
 
         const cellTemp = this.calculateCellTemperature(meanTemp, irradianceKwhM2 * 1000 / 24);
 
-        const dcEnergyKwh = Math.max(0, totalCapacity * irradianceKwhM2 * 0.22);
+        // Use more conservative efficiency for forecasts
+        const dcEnergyKwh = Math.max(0, totalCapacity * irradianceKwhM2 * 0.20);
         const acEnergyKwh = this.calculateACPower(dcEnergyKwh);
 
         days.push({
@@ -397,7 +488,7 @@ class OpenMeteoService {
         });
       }
 
-      console.log(`✅ Fetched ${days.length} days of forecast data`);
+      console.log(`✅ Fetched ${days.length} days of forecast data (based on historical patterns)`);
       return days;
     } catch (error) {
       console.error('❌ Forecast data fetch error:', error);
