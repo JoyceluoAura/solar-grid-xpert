@@ -7,7 +7,6 @@ import {
   Settings,
   LogOut,
   Camera,
-  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +20,6 @@ const Navigation = () => {
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
     { path: "/weather", label: "Weather", icon: MapPin },
-    { path: "/monitor", label: "Monitoring", icon: Video },
     { path: "/sensors", label: "Sensors", icon: Activity },
     { path: "/settings", label: "Settings", icon: Settings },
   ];

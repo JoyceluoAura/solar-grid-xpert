@@ -30,7 +30,12 @@ import {
   Wind,
   Sun,
   RefreshCw,
+  Camera,
+  Eye,
 } from "lucide-react";
+import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
+import { solarIssueService, SolarIssue } from "@/services/solarIssues";
+import { nasaPowerService } from "@/services/nasaPower";
 import {
   LineChart,
   Line,
@@ -87,6 +92,20 @@ const PanelAnalysis = () => {
   // Mock historical data for charts
   const [historicalData, setHistoricalData] = useState<any[]>([]);
 
+  // Integrated sensor and visual data
+  const [solarData, setSolarData] = useState<SolarDataPoint[]>([]);
+  const [solarIssues, setSolarIssues] = useState<SolarIssue[]>([]);
+  const [integratedDataLoading, setIntegratedDataLoading] = useState(false);
+
+  // Default site parameters for Jakarta
+  const siteParams = {
+    lat: -6.2088,
+    lon: 106.8456,
+    system_capacity: 100,
+    tilt: 10,
+    azimuth: 180,
+  };
+
   useEffect(() => {
     if (user) {
       fetchSites();
@@ -104,10 +123,16 @@ const PanelAnalysis = () => {
     if (autoRefresh && selectedSite) {
       const interval = setInterval(() => {
         fetchAnalysis();
+        fetchIntegratedData();
       }, 30000); // Refresh every 30 seconds
       return () => clearInterval(interval);
     }
   }, [autoRefresh, selectedSite]);
+
+  // Fetch integrated sensor and visual data
+  useEffect(() => {
+    fetchIntegratedData();
+  }, []);
 
   const fetchSites = async () => {
     try {
@@ -198,6 +223,31 @@ const PanelAnalysis = () => {
       setLastUpdated(new Date());
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchIntegratedData = async () => {
+    setIntegratedDataLoading(true);
+    try {
+      // Fetch solar metrics from Open-Meteo
+      const metrics = await openMeteoService.fetchSolarData(siteParams);
+      setSolarData(metrics);
+
+      // Fetch weather data and generate solar issues
+      const weather = await nasaPowerService.fetchWeatherData({
+        latitude: siteParams.lat,
+        longitude: siteParams.lon,
+      });
+
+      // Generate solar issues based on weather context
+      const issues = solarIssueService.generateSiteIssues('SGX-IND-001', weather, 6);
+      setSolarIssues(issues);
+
+      console.log(`✅ Integrated data fetched: ${metrics.length} hours, ${issues.length} issues`);
+    } catch (error) {
+      console.error('Error fetching integrated data:', error);
+    } finally {
+      setIntegratedDataLoading(false);
     }
   };
 
@@ -539,6 +589,137 @@ const PanelAnalysis = () => {
                       value={analysis.fault_prob * 100}
                       className="h-2 mt-3"
                     />
+                  </CardContent>
+                </Card>
+
+                {/* Integrated Sensor & Visual Data Summary */}
+                <Card className="shadow-lg border-[#75CFFF]/30 bg-gradient-to-br from-white to-[#75CFFF]/10">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Activity className="w-5 h-5 text-[#75CFFF]" />
+                          Live System Integration
+                        </CardTitle>
+                        <CardDescription>
+                          Real-time data from Metrics Data and Visual Monitoring
+                        </CardDescription>
+                      </div>
+                      <Button
+                        onClick={fetchIntegratedData}
+                        disabled={integratedDataLoading}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <RefreshCw className={`w-3 h-3 mr-1 ${integratedDataLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Metrics Data Summary */}
+                    {solarData.length > 0 && (
+                      <div className="p-4 rounded-lg bg-white border border-[#FFD36E]/30">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Sun className="w-4 h-4 text-[#FFD36E]" />
+                          <h4 className="font-semibold text-sm">Solar Metrics (Himawari Satellite)</h4>
+                        </div>
+                        <div className="grid grid-cols-4 gap-4">
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Current Output</div>
+                            <div className="text-lg font-bold text-[#FFD36E]">
+                              {solarData[solarData.length - 1]?.ac_output.toFixed(1)} kW
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Peak Output (24h)</div>
+                            <div className="text-lg font-bold text-green-600">
+                              {Math.max(...solarData.map(d => d.ac_output)).toFixed(1)} kW
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Irradiance</div>
+                            <div className="text-lg font-bold text-orange-600">
+                              {solarData[solarData.length - 1]?.irradiance.toFixed(0)} W/m²
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Cell Temp</div>
+                            <div className="text-lg font-bold text-red-600">
+                              {solarData[solarData.length - 1]?.cell_temp.toFixed(1)}°C
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          📊 {solarData.length} hours of data • Total energy: {(solarData.reduce((sum, d) => sum + d.ac_output, 0)).toFixed(1)} kWh
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Visual Monitoring Summary */}
+                    {solarIssues.length > 0 && (
+                      <div className="p-4 rounded-lg bg-white border border-red-200">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Camera className="w-4 h-4 text-red-500" />
+                          <h4 className="font-semibold text-sm">Visual Monitoring (AI Detection)</h4>
+                        </div>
+                        <div className="grid grid-cols-4 gap-4 mb-3">
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Critical Issues</div>
+                            <div className="text-lg font-bold text-red-600">
+                              {solarIssues.filter(i => i.severity === 'critical').length}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">High Priority</div>
+                            <div className="text-lg font-bold text-orange-600">
+                              {solarIssues.filter(i => i.severity === 'high').length}
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Avg Confidence</div>
+                            <div className="text-lg font-bold text-blue-600">
+                              {((solarIssues.reduce((sum, i) => sum + i.confidence, 0) / solarIssues.length) * 100).toFixed(0)}%
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xs text-muted-foreground">Energy Loss</div>
+                            <div className="text-lg font-bold text-red-600">
+                              {solarIssues.reduce((sum, i) => sum + i.predicted_kwh_loss, 0).toFixed(1)} kWh/day
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {solarIssues
+                            .filter(i => i.severity === 'critical' || i.severity === 'high')
+                            .slice(0, 3)
+                            .map((issue, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-xs p-2 rounded bg-red-50">
+                                <Badge className={issue.severity === 'critical' ? 'bg-red-500' : 'bg-orange-500'}>
+                                  {issue.severity.toUpperCase()}
+                                </Badge>
+                                <span className="flex-1">{issue.name}</span>
+                                <span className="font-semibold text-red-600">-{issue.predicted_kwh_loss.toFixed(1)} kWh</span>
+                              </div>
+                            ))}
+                        </div>
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          📹 {solarIssues.length} panels monitored • AI-powered anomaly detection
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Integration Status */}
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-700">
+                        System Integration Active
+                      </span>
+                      <Badge variant="outline" className="ml-auto">
+                        <Eye className="w-3 h-3 mr-1" />
+                        Real-time
+                      </Badge>
+                    </div>
                   </CardContent>
                 </Card>
               </>

@@ -31,7 +31,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { pvWattsService, SolarDataPoint } from "@/services/pvwatts";
+import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
 import { nasaPowerService, SolarWeatherData } from "@/services/nasaPower";
 import { solarIssueService, SolarIssue } from "@/services/solarIssues";
 
@@ -74,9 +74,9 @@ const IoTSensors = () => {
     fetchSensors();
   }, [user]);
 
-  // Fetch PVWatts data on mount
+  // Fetch solar data on mount
   useEffect(() => {
-    fetchPVWattsData();
+    fetchSolarData();
   }, []);
 
   // Fetch weather and issues data on mount
@@ -84,12 +84,12 @@ const IoTSensors = () => {
     fetchWeatherAndIssues();
   }, []);
 
-  // Auto-refresh PVWatts data every 10 seconds
+  // Auto-refresh solar data every 10 seconds
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
-      fetchPVWattsData();
+      fetchSolarData();
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
@@ -106,16 +106,16 @@ const IoTSensors = () => {
     return () => clearInterval(interval);
   }, [autoRefresh, siteParams]);
 
-  // Fetch live solar data from PVWatts
-  const fetchPVWattsData = async () => {
+  // Fetch live solar data from Open-Meteo
+  const fetchSolarData = async () => {
     try {
       setPvDataLoading(true);
-      const data = await pvWattsService.fetchSolarData(siteParams);
+      const data = await openMeteoService.fetchSolarData(siteParams);
       setSolarData(data);
       setLastUpdated(new Date());
       console.log(`✅ Updated solar data: ${data.length} hours`);
     } catch (error) {
-      console.error('Error fetching PVWatts data:', error);
+      console.error('Error fetching Open-Meteo data:', error);
       toast.error('Failed to fetch solar data');
     } finally {
       setPvDataLoading(false);
@@ -246,7 +246,6 @@ const IoTSensors = () => {
             <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-energy-blue to-solar-orange bg-clip-text text-transparent">
               IoT Sensors
             </h1>
-            <p className="text-muted-foreground">Manage and visualize your connected devices</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -344,29 +343,29 @@ const IoTSensors = () => {
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="data">
               <Activity className="w-4 h-4 mr-2" />
-              Data Sensors
+              Metrics Data
             </TabsTrigger>
             <TabsTrigger value="visual">
               <Video className="w-4 h-4 mr-2" />
-              Visual Monitoring
+              Visual Data
             </TabsTrigger>
           </TabsList>
 
           {/* Data Sensors Tab */}
           <TabsContent value="data" className="space-y-6">
-            {/* Live PVWatts Data Header */}
+            {/* Live Solar Data Header */}
             <Card className="shadow-card border-blue-200 bg-gradient-to-r from-blue-50 to-orange-50">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-start space-x-3">
                     <Sun className="h-6 w-6 text-orange-500 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium">Live Solar Data from PVWatts</p>
+                      <p className="text-sm font-medium">Live Solar Data - Singapore/Jakarta Region</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Hourly performance data • Auto-refreshes every 10 seconds • Last updated: {lastUpdated.toLocaleTimeString()}
+                        Himawari satellite data • Auto-refreshes every 10 seconds • Last updated: {lastUpdated.toLocaleTimeString()}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Location: {siteParams.lat.toFixed(4)}°, {siteParams.lon.toFixed(4)}° •
+                        Location: Jakarta, Indonesia ({siteParams.lat.toFixed(4)}°, {siteParams.lon.toFixed(4)}°) •
                         System: {siteParams.system_capacity} kW • {solarData.length} hours of data
                       </p>
                     </div>
@@ -382,7 +381,7 @@ const IoTSensors = () => {
                       />
                     </div>
                     <Button
-                      onClick={fetchPVWattsData}
+                      onClick={fetchSolarData}
                       disabled={pvDataLoading}
                       size="sm"
                       className="bg-gradient-to-r from-orange-500 to-blue-500 text-white"
@@ -610,7 +609,7 @@ const IoTSensors = () => {
                           </div>
                           <div>
                             <span className="text-muted-foreground">Data Source:</span>
-                            <span className="font-semibold ml-1">PVWatts API</span>
+                            <span className="font-semibold ml-1">Open-Meteo Satellite</span>
                           </div>
                         </div>
                       </div>
@@ -624,7 +623,7 @@ const IoTSensors = () => {
                   <Sun className="w-16 h-16 text-muted-foreground/50 mb-4 animate-pulse" />
                   <h3 className="text-xl font-semibold mb-2">Loading Solar Data...</h3>
                   <p className="text-muted-foreground text-center mb-6">
-                    Fetching live hourly data from PVWatts API
+                    Fetching live hourly data from Himawari satellite
                   </p>
                 </CardContent>
               </Card>
@@ -633,58 +632,6 @@ const IoTSensors = () => {
 
           {/* Visual Monitoring Tab */}
           <TabsContent value="visual" className="space-y-6">
-            {/* Header with weather context */}
-            <Card className="shadow-card border-blue-200 bg-gradient-to-r from-blue-50 via-orange-50 to-green-50">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-start space-x-3">
-                    <Camera className="h-6 w-6 text-blue-500 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">AI-Powered Visual Monitoring</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Real-time anomaly detection • NASA POWER weather data • Last updated: {visualLastUpdated.toLocaleTimeString()}
-                      </p>
-                      {weatherData && (
-                        <div className="flex items-center gap-3 mt-2 text-xs">
-                          <div className="flex items-center gap-1">
-                            <Sun className="w-3 h-3 text-orange-500" />
-                            <span>{weatherData.irradiance.toFixed(0)} W/m²</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Thermometer className="w-3 h-3 text-red-500" />
-                            <span>{weatherData.temperature.toFixed(1)}°C</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Cloud className="w-3 h-3 text-gray-500" />
-                            <span>{weatherData.cloud_cover.toFixed(0)}%</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Wind className="w-3 h-3 text-blue-500" />
-                            <span>{weatherData.wind_speed.toFixed(1)} m/s</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Droplets className="w-3 h-3 text-blue-400" />
-                            <span>{weatherData.humidity.toFixed(0)}%</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={fetchWeatherAndIssues}
-                      disabled={issuesLoading}
-                      size="sm"
-                      className="bg-gradient-to-r from-blue-500 to-orange-500 text-white"
-                    >
-                      <RefreshCw className={`w-3 h-3 mr-1 ${issuesLoading ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {solarIssues.length > 0 ? (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {solarIssues.map((issue) => (
