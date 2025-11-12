@@ -632,15 +632,37 @@ const IoTSensors = () => {
       return null;
     }
 
-    // Use the actual latest hourly data for current output, not aggregated data
-    const latestHourlyData = solarData.length > 0 ? solarData[solarData.length - 1] : displayData[displayData.length - 1];
+    // Always use the latest real-time hourly data for "Current Output"
+    // regardless of which view mode is active
+    let latestPower = 0;
+    if (solarData.length > 0) {
+      latestPower = solarData[solarData.length - 1].ac_output;
+    } else if (displayData.length > 0) {
+      // Fallback to displayData, but use the raw value not divided
+      const latestDisplay = displayData[displayData.length - 1];
+      latestPower = latestDisplay.ac_output;
+      // If we're in aggregated view (weekly/monthly/yearly), multiply back
+      if (viewMode !== 'hourly' && viewMode !== 'forecast') {
+        latestPower = latestPower * 24; // Reverse the averaging
+      }
+    }
+    
+    console.log('📊 Current Output Debug:', {
+      viewMode,
+      solarDataLength: solarData.length,
+      displayDataLength: displayData.length,
+      latestPower,
+      latestSolarData: solarData.length > 0 ? solarData[solarData.length - 1] : null,
+      latestDisplayData: displayData[displayData.length - 1],
+    });
+
     const peakPower = Math.max(...displayData.map((d) => d.ac_output));
     const avgPower = displayData.reduce((sum, d) => sum + d.ac_output, 0) / displayData.length;
     const energyMultiplier = viewMode === 'hourly' ? 1 : 24;
     const totalEnergyKwh = displayData.reduce((sum, d) => sum + d.ac_output * energyMultiplier, 0);
 
     return {
-      latestPower: latestHourlyData.ac_output,
+      latestPower,
       peakPower,
       avgPower,
       totalEnergyKwh,
