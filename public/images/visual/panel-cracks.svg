@@ -1,0 +1,49 @@
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="duskSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5f7ebc" />
+      <stop offset="100%" stop-color="#c8d6f5" />
+    </linearGradient>
+    <linearGradient id="panelBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d3a63" />
+      <stop offset="100%" stop-color="#1e88e5" />
+    </linearGradient>
+    <linearGradient id="volcano" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4b4b4b" />
+      <stop offset="100%" stop-color="#212121" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#duskSky)" />
+  <path d="M0 360 Q220 280 420 320 T800 300 L800 600 L0 600 Z" fill="#6aa84f" />
+  <path d="M460 320 Q520 260 620 260 Q690 260 760 320 L760 600 L460 600 Z" fill="#4f772d" opacity="0.7" />
+  <path d="M580 260 Q630 200 700 220 Q760 240 800 280 L800 360 L560 360 Z" fill="url(#volcano)" />
+  <g transform="skewX(-10) translate(150 260)">
+    <polygon points="0,160 360,110 360,250 0,310" fill="#081d31" />
+    <polygon points="0,160 360,110 400,130 40,200" fill="#061320" opacity="0.9" />
+    <polygon points="360,110 400,130 400,270 360,250" fill="#041d30" />
+    <rect x="-5" y="165" width="375" height="130" fill="url(#panelBlue)" opacity="0.9" />
+    <g stroke="#112f4f" stroke-width="3">
+      <line x1="0" y1="180" x2="370" y2="140" />
+      <line x1="0" y1="210" x2="370" y2="170" />
+      <line x1="0" y1="240" x2="370" y2="200" />
+      <line x1="0" y1="270" x2="370" y2="230" />
+    </g>
+    <g stroke="#1a69b4" stroke-width="5" opacity="0.8">
+      <line x1="40" y1="170" x2="40" y2="285" />
+      <line x1="120" y1="155" x2="120" y2="270" />
+      <line x1="200" y1="140" x2="200" y2="255" />
+      <line x1="280" y1="125" x2="280" y2="240" />
+    </g>
+    <g stroke="#fef3bd" stroke-width="6" stroke-linecap="round" opacity="0.85">
+      <path d="M60 200 L110 230 L90 260" />
+      <path d="M180 185 L220 205 L210 240" />
+      <path d="M260 180 L310 210 L300 250" />
+    </g>
+  </g>
+  <text x="40" y="80" fill="#f5f5f5" font-size="26" font-family="'Inter',sans-serif" font-weight="600" opacity="0.85">
+    Rooftop array in Bandung, West Java • Micro-crack discovered after hailstorm
+  </text>
+  <text x="40" y="110" fill="#f5f5f5" font-size="18" font-family="'Inter',sans-serif" opacity="0.85">
+    Degradation risk 18% • Recommend isolation test and module replacement plan
+  </text>
+</svg>
