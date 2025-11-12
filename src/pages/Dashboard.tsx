@@ -257,7 +257,7 @@ const Dashboard = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/sensors")}
+                  onClick={() => navigate("/panel-analysis")}
                 >
                   View All
                   <ChevronRight className="w-4 h-4 ml-1" />
@@ -271,7 +271,7 @@ const Dashboard = () => {
                   <div
                     key={item.id}
                     className="p-4 rounded-lg border bg-white dark:bg-gray-900 hover:shadow-md transition-all cursor-pointer"
-                    onClick={() => navigate("/sensors")}
+                    onClick={() => navigate("/panel-analysis")}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -315,7 +315,7 @@ const Dashboard = () => {
 
               {actionItems.length >= 5 && (
                 <div className="mt-4 text-center">
-                  <Button variant="outline" onClick={() => navigate("/sensors")}>
+                  <Button variant="outline" onClick={() => navigate("/panel-analysis")}>
                     View More Action Items
                   </Button>
                 </div>
