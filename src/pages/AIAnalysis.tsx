@@ -38,6 +38,7 @@ import {
   Legend
 } from "recharts";
 import axios from "axios";
+import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
@@ -78,6 +79,266 @@ interface SiteOption {
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
+const buildTopDriverBreakdown = (weights: Array<{ label: string; value: number }>): Array<{ label: string; contribution_pct: number }> => {
+  if (weights.length === 0) {
+    return [];
+  }
+
+  const sanitized = weights.map(driver => ({
+    label: driver.label,
+    value: driver.value > 0 ? driver.value : 0.5,
+  }));
+  const totalWeight = sanitized.reduce((sum, driver) => sum + driver.value, 0) || 1;
+  let allocated = 0;
+
+  const breakdown = sanitized.map((driver, index) => {
+    if (index === sanitized.length - 1) {
+      return {
+        label: driver.label,
+        contribution_pct: Math.max(0, 100 - allocated),
+      };
+    }
+
+    const pct = Math.max(0, Math.round((driver.value / totalWeight) * 100));
+    allocated += pct;
+    return {
+      label: driver.label,
+      contribution_pct: pct,
+    };
+  });
+
+  const totalAllocated = breakdown.reduce((sum, driver) => sum + driver.contribution_pct, 0);
+  if (totalAllocated > 100 && breakdown.length > 0) {
+    const diff = totalAllocated - 100;
+    breakdown[0].contribution_pct = Math.max(0, breakdown[0].contribution_pct - diff);
+  }
+
+  return breakdown;
+};
+
+const buildOverviewFromSolarData = (data: SolarDataPoint[], capacity: number): OverviewData => {
+  if (data.length === 0) {
+    return {
+      health_score: 76.2,
+      predicted_loss_kwh_7d: 94.5,
+      predicted_loss_pct_7d: 6.5,
+      top_drivers: [
+        { label: "Limited irradiance", contribution_pct: 40 },
+        { label: "Temperature derating", contribution_pct: 35 },
+        { label: "Cleaning interval", contribution_pct: 25 },
+      ],
+      actions: [
+        { title: "Verify shading on midday strings", impact_kwh: 34.1, priority: "high" },
+        { title: "Schedule module cleaning", impact_kwh: 28.4, priority: "med" },
+        { title: "Tune inverter MPPT window", impact_kwh: 18.6, priority: "med" },
+      ],
+      forecast_windows: [],
+    };
+  }
+
+  const window = data.slice(-24);
+  const peakOutput = window.reduce((max, point) => Math.max(max, point.ac_output), 0);
+  const averageOutput = window.reduce((sum, point) => sum + point.ac_output, 0) / window.length;
+  const avgIrradiance = window.reduce((sum, point) => sum + point.irradiance, 0) / window.length;
+  const highTempHours = window.filter(point => point.cell_temp > 60).length;
+  const shadingHours = window.filter(point => point.irradiance > 600 && point.ac_output < capacity * 0.6).length;
+  const expectedPeak = capacity * 0.95;
+  const lossPct = expectedPeak > 0 ? Math.max(0, ((expectedPeak - peakOutput) / expectedPeak) * 100) : 0;
+  const predictedLossKwh = Number(((lossPct / 100) * capacity * 7 * 4).toFixed(1));
+  const healthScore = Number(
+    Math.min(100, Math.max(45, 92 - lossPct / 2 - highTempHours * 1.8 - shadingHours * 2)).toFixed(1)
+  );
+
+  const drivers = buildTopDriverBreakdown([
+    { label: "Thermal derating", value: highTempHours * 1.6 },
+    { label: "Cloud cover & shading", value: shadingHours * 1.4 },
+    { label: "Soiling trend", value: avgIrradiance < 500 ? 1.8 : 1 },
+  ]);
+
+  const actions: OverviewData["actions"] = [
+    {
+      title: `Investigate hotspots detected in camera feed`,
+      impact_kwh: Number((Math.max(1, highTempHours) * capacity * 0.35).toFixed(1)),
+      priority: highTempHours > 0 ? "high" : "med",
+    },
+    {
+      title: `Trim shading sources affecting ${shadingHours} recent hours`,
+      impact_kwh: Number((Math.max(1, shadingHours) * capacity * 0.25).toFixed(1)),
+      priority: shadingHours > 1 ? "high" : "med",
+    },
+    {
+      title: `Wash modules to sustain ${averageOutput.toFixed(1)} kW baseline`,
+      impact_kwh: Number((capacity * 0.18).toFixed(1)),
+      priority: "med",
+    },
+  ];
+
+  const highRiskWindows = window
+    .filter(point => point.irradiance > 650 && point.ac_output < capacity * 0.6)
+    .slice(0, 2)
+    .map(point => ({
+      start: point.timestamp,
+      end: new Date(new Date(point.timestamp).getTime() + 60 * 60 * 1000).toISOString(),
+      label: "high risk" as const,
+    }));
+
+  const lowOutputWindow = window
+    .filter(point => point.irradiance < 200)
+    .slice(-1)
+    .map(point => ({
+      start: point.timestamp,
+      end: new Date(new Date(point.timestamp).getTime() + 60 * 60 * 1000).toISOString(),
+      label: "low output" as const,
+    }));
+
+  return {
+    health_score: healthScore,
+    predicted_loss_kwh_7d: predictedLossKwh,
+    predicted_loss_pct_7d: Number(lossPct.toFixed(1)),
+    top_drivers: drivers,
+    actions,
+    forecast_windows: [...highRiskWindows, ...lowOutputWindow],
+  };
+};
+
+const buildInsightsFromSolarData = (data: SolarDataPoint[], capacity: number): InsightCard[] => {
+  if (data.length === 0) {
+    return [];
+  }
+
+  const window = data.slice(-24);
+  const insights: InsightCard[] = [];
+
+  const hottestPoint = window.reduce((prev, current) => (current.cell_temp > prev.cell_temp ? current : prev));
+  if (hottestPoint.cell_temp > 58) {
+    const impact = Number(((hottestPoint.cell_temp - 55) * capacity * 0.08).toFixed(1));
+    insights.push({
+      id: "thermal-hotspot",
+      ts: hottestPoint.timestamp,
+      kind: "thermal_hotspot",
+      confidence: Math.min(0.98, 0.6 + (hottestPoint.cell_temp - 55) / 40),
+      impact_kwh: impact,
+      summary: `Thermal hotspot detected at ${hottestPoint.hour} — cell temperature ${hottestPoint.cell_temp.toFixed(1)}°C with AC output ${hottestPoint.ac_output.toFixed(1)} kW`,
+      tags: ["Thermal", "Camera", "Performance"],
+    });
+  }
+
+  const irradiancePeaks = window.filter(point => point.irradiance > 650);
+  if (irradiancePeaks.length > 0) {
+    const worstPerformance = irradiancePeaks.reduce(
+      (prev, point) => {
+        const expected = Math.min(capacity, (point.irradiance / 1000) * capacity);
+        const pr = expected > 0 ? point.ac_output / expected : 1;
+        if (pr < prev.pr) {
+          return { point, pr };
+        }
+        return prev;
+      },
+      { point: irradiancePeaks[0], pr: 1 }
+    );
+
+    if (worstPerformance.pr < 0.78) {
+      const deficit = Math.max(0, Math.min(capacity, (worstPerformance.point.irradiance / 1000) * capacity) - worstPerformance.point.ac_output);
+      insights.push({
+        id: "shading-midday",
+        ts: worstPerformance.point.timestamp,
+        kind: "shading",
+        confidence: Math.min(0.9, 0.7 + (1 - worstPerformance.pr) / 2),
+        impact_kwh: Number((deficit * 1.5).toFixed(1)),
+        summary: `Midday shading suspected — irradiance ${Math.round(worstPerformance.point.irradiance)} W/m² but AC output ${worstPerformance.point.ac_output.toFixed(1)} kW`,
+        tags: ["Shading", "Performance", "AI"],
+      });
+    }
+  }
+
+  const morningPoints = window.filter(point => {
+    const hour = parseInt(point.hour.split(":")[0], 10);
+    return hour >= 6 && hour <= 10;
+  });
+  if (morningPoints.length >= 2) {
+    const first = morningPoints[0];
+    const last = morningPoints[morningPoints.length - 1];
+    const ramp = last.ac_output - first.ac_output;
+    if (ramp < capacity * 0.3) {
+      insights.push({
+        id: "slow-ramp",
+        ts: last.timestamp,
+        kind: "soiling",
+        confidence: 0.72,
+        impact_kwh: Number((Math.max(0, capacity * 0.35 - ramp)).toFixed(1)),
+        summary: `Morning production ramp is slower than expected — gained only ${ramp.toFixed(1)} kW between ${first.hour} and ${last.hour}`,
+        tags: ["Soiling", "Ramp", "Performance"],
+      });
+    }
+  }
+
+  if (insights.length === 0) {
+    const latest = window[window.length - 1];
+    insights.push({
+      id: "stable-output",
+      ts: latest.timestamp,
+      kind: "stability",
+      confidence: 0.65,
+      impact_kwh: Number((capacity * 0.12).toFixed(1)),
+      summary: `Consistent production — latest reading ${latest.ac_output.toFixed(1)} kW with irradiance ${Math.round(latest.irradiance)} W/m²`,
+      tags: ["Stability", "Performance"],
+    });
+  }
+
+  return insights;
+};
+
+const buildHistoryFromSolarData = (data: SolarDataPoint[], capacity: number): HistoryData => {
+  if (data.length === 0) {
+    return {
+      series: [],
+      anomalies: [],
+      kpis: { mtbf_hours: 72, mttr_hours: 4, recovered_kwh_30d: 120 },
+    };
+  }
+
+  const sorted = [...data].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const series = sorted.map(point => {
+    const modeled = Math.min(capacity, (point.irradiance / 1000) * capacity);
+    const performanceRatio = modeled > 0 ? point.ac_output / modeled : null;
+    return {
+      ts: point.timestamp,
+      ghi: Number(point.irradiance.toFixed(1)),
+      ac_kw: Number(point.ac_output.toFixed(2)),
+      modeled_kw: Number(modeled.toFixed(2)),
+      pr: performanceRatio !== null ? Number(Math.max(0, Math.min(1.2, performanceRatio)).toFixed(2)) : null,
+    };
+  });
+
+  const anomalies = series
+    .filter(item => (item.pr ?? 1) < 0.75)
+    .slice(-3)
+    .map(item => ({
+      start: item.ts,
+      end: new Date(new Date(item.ts).getTime() + 60 * 60 * 1000).toISOString(),
+      type: (item.pr ?? 1) < 0.55 ? "critical" : "warning",
+      score: Math.round((1 - (item.pr ?? 1)) * 100),
+    }));
+
+  const deficit = series.reduce((sum, item) => {
+    const delta = item.modeled_kw - item.ac_kw;
+    return delta > 0 ? sum + delta : sum;
+  }, 0);
+
+  const mtbf = anomalies.length > 0 ? Math.max(12, Math.round((series.length / anomalies.length) * 1.5)) : 96;
+  const mttr = anomalies.length > 0 ? 6 : 3;
+
+  return {
+    series,
+    anomalies,
+    kpis: {
+      mtbf_hours: mtbf,
+      mttr_hours: mttr,
+      recovered_kwh_30d: Math.round(deficit),
+    },
+  };
+};
 
 const AIAnalysis = () => {
   const { user } = useAuth();
@@ -168,6 +429,22 @@ const AIAnalysis = () => {
     return params.toString();
   };
 
+  const fetchSolarBaseline = async (): Promise<SolarDataPoint[]> => {
+    if (!selectedSiteDetails) return [];
+    try {
+      return await openMeteoService.fetchSolarData({
+        lat: selectedSiteDetails.latitude,
+        lon: selectedSiteDetails.longitude,
+        system_capacity: selectedSiteDetails.system_size_kwp ?? 100,
+        tilt: 10,
+        azimuth: 180,
+      });
+    } catch (solarError) {
+      console.error("Failed to fetch fallback solar data:", solarError);
+      return [];
+    }
+  };
+
   const fetchOverviewData = async () => {
     if (!selectedSiteDetails) return;
     try {
@@ -180,24 +457,9 @@ const AIAnalysis = () => {
       const message = getErrorMessage(error);
       console.error("Failed to fetch overview:", message);
       toast.error("Failed to load AI overview data");
-      // Set mock data as fallback
-      setOverviewData({
-        health_score: 87.5,
-        predicted_loss_kwh_7d: 125.4,
-        predicted_loss_pct_7d: 8.2,
-        top_drivers: [
-          { label: "Temperature Derating", contribution_pct: 35 },
-          { label: "Partial Shading", contribution_pct: 28 },
-          { label: "Soiling", contribution_pct: 22 },
-          { label: "Inverter Clipping", contribution_pct: 15 }
-        ],
-        actions: [
-          { title: "Schedule panel cleaning", impact_kwh: 50.2, priority: "high" },
-          { title: "Investigate inverter", impact_kwh: 37.6, priority: "high" },
-          { title: "Optimize tilt angle", impact_kwh: 25.1, priority: "med" }
-        ],
-        forecast_windows: []
-      });
+      const fallbackSolar = await fetchSolarBaseline();
+      const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
+      setOverviewData(buildOverviewFromSolarData(fallbackSolar, capacity));
     } finally {
       setOverviewLoading(false);
       setLoading(false);
@@ -216,28 +478,10 @@ const AIAnalysis = () => {
       const message = getErrorMessage(error);
       console.error("Failed to fetch insights:", message);
       toast.error("Failed to load AI insights");
-      // Set mock insights as fallback
-      setInsights([
-        {
-          id: "1",
-          ts: new Date().toISOString(),
-          kind: "soiling",
-          confidence: 0.85,
-          impact_kwh: 45.2,
-          summary: "Heavy dust accumulation detected on panels - 15% coverage affecting output",
-          evidence_url: "https://videos.pexels.com/video-files/7989442/7989442-uhd_2560_1440_24fps.mp4",
-          tags: ["Soiling", "Visual", "Inspection"]
-        },
-        {
-          id: "2",
-          ts: new Date().toISOString(),
-          kind: "inverter_derating",
-          confidence: 0.78,
-          impact_kwh: 38.5,
-          summary: "Inverter derating suspected during peak hours - AC output 15-20% below expected",
-          tags: ["Derating", "Inverter", "Performance"]
-        }
-      ]);
+      const fallbackSolar = await fetchSolarBaseline();
+      const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
+      const generatedInsights = buildInsightsFromSolarData(fallbackSolar, capacity);
+      setInsights(generatedInsights.length > 0 ? generatedInsights : []);
     } finally {
       setInsightsLoading(false);
     }
@@ -255,6 +499,9 @@ const AIAnalysis = () => {
       const message = getErrorMessage(error);
       console.error("Failed to fetch history:", message);
       toast.error("Failed to load history data");
+      const fallbackSolar = await fetchSolarBaseline();
+      const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
+      setHistoryData(buildHistoryFromSolarData(fallbackSolar, capacity));
     } finally {
       setHistoryLoading(false);
     }
