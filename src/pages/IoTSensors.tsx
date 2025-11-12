@@ -82,6 +82,31 @@ interface DisplayDataPoint {
   configTemps: Record<string, number>;
 }
 
+interface DisplaySensor {
+  id: string;
+  sensor_name: string;
+  sensor_type: string;
+  protocol: string;
+  device_id: string;
+  status: 'online' | 'offline' | 'error';
+  last_value?: string;
+  last_updated?: string;
+}
+
+const formatRelativeTime = (iso?: string) => {
+  if (!iso) return 'Updated just now';
+  const updated = new Date(iso);
+  if (Number.isNaN(updated.getTime())) return 'Updated just now';
+  const diffMs = Date.now() - updated.getTime();
+  if (diffMs < 0) return 'Updated just now';
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'Updated seconds ago';
+  if (minutes < 60) return `Updated ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Updated ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `Updated ${days}d ago`;
+};
 
 const IoTSensors = () => {
   const { user } = useAuth();
@@ -566,6 +591,62 @@ const IoTSensors = () => {
       );
     }
 
+    // Yearly view - aggregate by month for the last 12 months
+    const monthlyBuckets = new Map<string, {
+      ac: number;
+      dc: number;
+      irr: number;
+      ambient: number;
+      cell: number;
+      count: number;
+    }>();
+
+    orderedHistorical.forEach((day) => {
+      const monthKey = day.date.slice(0, 7); // YYYY-MM
+      if (!monthlyBuckets.has(monthKey)) {
+        monthlyBuckets.set(monthKey, { ac: 0, dc: 0, irr: 0, ambient: 0, cell: 0, count: 0 });
+      }
+      const bucket = monthlyBuckets.get(monthKey)!;
+      bucket.ac += day.ac_output;
+      bucket.dc += day.dc_output;
+      bucket.irr += day.irradiance;
+      bucket.ambient += day.ambient_temp;
+      bucket.cell += day.cell_temp;
+      bucket.count += 1;
+    });
+
+    const monthlyPoints = Array.from(monthlyBuckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .slice(-12);
+
+    return monthlyPoints.map(([monthKey, bucket]) =>
+      buildPoint(
+        new Date(`${monthKey}-01`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+        (bucket.ac / bucket.count) / 24,
+        (bucket.dc / bucket.count) / 24,
+        (bucket.irr / bucket.count) / 24,
+        bucket.ambient / bucket.count,
+        bucket.cell / bucket.count
+      )
+    );
+  }, [solarData, historicalSolarData, viewMode, dayNightFilter, selectedDate]);
+
+  const chartUnits = useMemo(() => ({
+    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : 'Avg Power (kW)',
+    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : 'Avg Irradiance (W/m²)',
+    tooltipPowerSuffix: viewMode === 'hourly' ? ' kW' : ' kW avg',
+    tooltipIrrSuffix: viewMode === 'hourly' ? ' W/m²' : ' W/m² avg',
+  }), [viewMode]);
+
+  const viewMeta = useMemo(() => {
+    if (viewMode === 'hourly') {
+      return {
+        windowLabel: '24-hour live view',
+        totalSourcePoints: solarData.length,
+        pointDescriptor: 'hourly samples',
+      };
+    }
+
     if (viewMode === 'weekly') {
       return {
         windowLabel: '7-day daily averages',
@@ -772,7 +853,7 @@ const IoTSensors = () => {
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-
+                {combinedSensors.map((sensor) => {
                   const normalizedType = sensor.sensor_type === 'thermal' ? 'temperature' : sensor.sensor_type;
                   const Icon = getSensorIcon(normalizedType);
                   const statusColor = getStatusColor(sensor.status);
@@ -783,7 +864,8 @@ const IoTSensors = () => {
                       className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-md transition-all"
                     >
                       <div className="flex items-start gap-3">
-
+                        <div className={`w-10 h-10 rounded-lg ${gradientClass} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
@@ -822,9 +904,9 @@ const IoTSensors = () => {
               </div>
             </CardContent>
           </Card>
-        )}
+        )
 
-        {/* Tabs for Data vs Visual */}
+{/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="data">
