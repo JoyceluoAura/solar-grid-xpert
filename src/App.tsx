@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Navigation from "./components/Navigation";
@@ -14,7 +14,11 @@ import IoTSensors from "./pages/IoTSensors";
 import TestingDiagnostics from "./pages/TestingDiagnostics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import PanelAnalysis from "./pages/PanelAnalysis";
+import Monitor from "./pages/Monitor";
+import Evaluate from "./pages/Evaluate";
+import AIAnalysis from "./pages/AIAnalysis";
+import VisualMonitoring from "./pages/VisualMonitoring";
+import RealTimeMonitor from "./pages/RealTimeMonitor";
 
 const queryClient = new QueryClient();
 
@@ -77,11 +81,47 @@ const App = () => (
               }
             />
             <Route
-              path="/panel-analysis"
+              path="/visual-monitoring"
               element={
                 <ProtectedRoute>
                   <Navigation />
-                  <PanelAnalysis />
+                  <VisualMonitoring />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ai-analysis"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <AIAnalysis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/real-time"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <RealTimeMonitor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/monitor"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <Monitor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/evaluate"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <Evaluate />
                 </ProtectedRoute>
               }
             />

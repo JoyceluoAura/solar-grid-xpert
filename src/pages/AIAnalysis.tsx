@@ -37,8 +37,9 @@ import {
   ResponsiveContainer,
   Legend
 } from "recharts";
-import axios from "axios";
 import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
+import { solarIssueService, SolarIssue } from "@/services/solarIssues";
+import { nasaPowerService } from "@/services/nasaPower";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
@@ -362,6 +363,11 @@ const AIAnalysis = () => {
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyRange, setHistoryRange] = useState<string>("30d");
+  
+  // Solar issues state
+  const [solarIssues, setSolarIssues] = useState<SolarIssue[]>([]);
+  const [issuesLoading, setIssuesLoading] = useState(false);
+  
   const selectedSiteDetails = useMemo(() =>
     sites.find((site) => site.id === selectedSite) ?? null,
   [sites, selectedSite]);
@@ -382,6 +388,7 @@ const AIAnalysis = () => {
     if (user && selectedSite) {
       fetchOverviewData();
       fetchInsightsData();
+      fetchSolarIssues();
       if (activeTab === "history") {
         fetchHistoryData();
       }
@@ -449,17 +456,13 @@ const AIAnalysis = () => {
     if (!selectedSiteDetails) return;
     try {
       setOverviewLoading(true);
-      const query = buildSiteQuery();
-      if (!query) return;
-      const response = await axios.get(`${BACKEND_URL}/api/ai/overview?${query}`);
-      setOverviewData(response.data);
+      const fallbackSolar = await fetchSolarBaseline();
+      const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
+      setOverviewData(buildOverviewFromSolarData(fallbackSolar, capacity));
     } catch (error) {
       const message = getErrorMessage(error);
       console.error("Failed to fetch overview:", message);
       toast.error("Failed to load AI overview data");
-      const fallbackSolar = await fetchSolarBaseline();
-      const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
-      setOverviewData(buildOverviewFromSolarData(fallbackSolar, capacity));
     } finally {
       setOverviewLoading(false);
       setLoading(false);
@@ -470,20 +473,33 @@ const AIAnalysis = () => {
     if (!selectedSiteDetails) return;
     try {
       setInsightsLoading(true);
-      const query = buildSiteQuery();
-      if (!query) return;
-      const response = await axios.get(`${BACKEND_URL}/api/ai/insights?${query}`);
-      setInsights(response.data.insights);
-    } catch (error) {
-      const message = getErrorMessage(error);
-      console.error("Failed to fetch insights:", message);
-      toast.error("Failed to load AI insights");
       const fallbackSolar = await fetchSolarBaseline();
       const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
       const generatedInsights = buildInsightsFromSolarData(fallbackSolar, capacity);
       setInsights(generatedInsights.length > 0 ? generatedInsights : []);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch insights:", message);
+      toast.error("Failed to load AI insights");
     } finally {
       setInsightsLoading(false);
+    }
+  };
+
+  const fetchSolarIssues = async () => {
+    if (!selectedSiteDetails) return;
+    try {
+      setIssuesLoading(true);
+      const weather = await nasaPowerService.fetchWeatherData({
+        latitude: selectedSiteDetails.latitude,
+        longitude: selectedSiteDetails.longitude,
+      });
+      const issues = solarIssueService.generateSiteIssues(selectedSiteDetails.id, weather, 6);
+      setSolarIssues(issues);
+    } catch (error) {
+      console.error("Failed to fetch solar issues:", error);
+    } finally {
+      setIssuesLoading(false);
     }
   };
 
@@ -491,10 +507,9 @@ const AIAnalysis = () => {
     if (!selectedSiteDetails) return;
     try {
       setHistoryLoading(true);
-      const query = buildSiteQuery({ range: historyRange });
-      if (!query) return;
-      const response = await axios.get(`${BACKEND_URL}/api/ai/history?${query}`);
-      setHistoryData(response.data);
+      const fallbackSolar = await fetchSolarBaseline();
+      const capacity = selectedSiteDetails?.system_size_kwp ?? 100;
+      setHistoryData(buildHistoryFromSolarData(fallbackSolar, capacity));
     } catch (error) {
       const message = getErrorMessage(error);
       console.error("Failed to fetch history:", message);
@@ -786,6 +801,51 @@ const AIAnalysis = () => {
 
         {/* AI INSIGHTS TAB */}
         <TabsContent value="insights" className="space-y-6">
+          {/* Detected Issues Section */}
+          {!issuesLoading && solarIssues.length > 0 && (
+            <Card className="shadow-card border-orange-200 bg-gradient-to-br from-orange-50/50 to-red-50/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-orange-600" />
+                  Detected Panel Issues
+                </CardTitle>
+                <CardDescription>
+                  Real-time visual monitoring detected {solarIssues.filter(i => i.severity === 'critical' || i.severity === 'high').length} critical/high severity issues
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {solarIssues.filter(i => i.severity === 'critical' || i.severity === 'high').slice(0, 4).map((issue) => (
+                    <div key={issue.id} className="p-4 border border-border rounded-lg bg-white space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm">{issue.panel_id}</p>
+                          <p className="text-xs text-muted-foreground">{issue.location}</p>
+                        </div>
+                        <Badge variant="outline" className={
+                          issue.severity === 'critical' 
+                            ? "bg-red-500/10 text-red-600 border-red-500/20"
+                            : "bg-orange-500/10 text-orange-600 border-orange-500/20"
+                        }>
+                          {issue.severity}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm"><span className="font-medium">Issue:</span> {issue.type}</p>
+                        <p className="text-sm"><span className="font-medium">Energy Loss:</span> {issue.energy_loss_percent}% ({issue.predicted_kwh_loss} kWh/day)</p>
+                        <p className="text-sm"><span className="font-medium">AI Confidence:</span> {Math.round(issue.confidence * 100)}%</p>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs font-semibold mb-1">Top Action:</p>
+                        <p className="text-xs text-muted-foreground">{issue.recommended_actions[0]}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Filters */}
           <Card className="shadow-card">
             <CardContent className="pt-6">
