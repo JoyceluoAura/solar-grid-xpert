@@ -16,6 +16,7 @@ import {
   Zap,
   Battery,
   Camera,
+  Video,
   Sun,
   RefreshCw,
   TrendingUp,
@@ -808,6 +809,8 @@ const IoTSensors = () => {
   ]);
 
   const latestBatteryMetric = batteryMetrics[batteryMetrics.length - 1];
+  const latestInverterMetric = inverterMetrics[inverterMetrics.length - 1];
+  const inverterAvgEfficiency = deviceSummary?.inverter.avgEfficiencyPct ?? null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -961,7 +964,7 @@ const IoTSensors = () => {
 
         {/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
-
+          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
             <TabsTrigger value="data">
               <Activity className="w-4 h-4 mr-2" />
               Metrics Data
@@ -971,7 +974,7 @@ const IoTSensors = () => {
               Data Analysis
             </TabsTrigger>
             <TabsTrigger value="visual">
-              <Camera className="w-4 h-4 mr-2" />
+              <Video className="w-4 h-4 mr-2" />
               Visual Data
             </TabsTrigger>
           </TabsList>
@@ -1778,10 +1781,14 @@ const IoTSensors = () => {
                     }`}
                   >
                     <div className="relative aspect-video bg-black">
-                      <img
-                        src={issue.imageUrl}
-                        alt={issue.imageAlt}
-                        className="w-full h-full object-cover opacity-85 transition-opacity duration-300 group-hover:opacity-95"
+                      <video
+                        src={issue.videoUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        poster={issue.posterUrl}
+                        className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-90"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-all group-hover:from-black/95" />
 
@@ -1793,9 +1800,9 @@ const IoTSensors = () => {
                             LIVE
                           </Badge>
                         )}
-                        <Badge className="bg-black/60 backdrop-blur-sm">
-                          <Camera className="w-3 h-3 mr-1" />
-                          Field capture
+                        <Badge className="bg-black/50 backdrop-blur-sm">
+                          <Video className="w-3 h-3 mr-1" />
+                          5s
                         </Badge>
                       </div>
 
@@ -1810,12 +1817,9 @@ const IoTSensors = () => {
 
                       {/* Location and sensor data */}
                       <div className="absolute bottom-0 left-0 right-0 p-3 space-y-1">
-                        <div className="text-white text-sm font-semibold drop-shadow-lg">
-                          {issue.imageLocation}
+                        <div className="text-white text-sm font-medium drop-shadow-lg">
+                          {issue.location}
                         </div>
-                        <p className="text-xs text-white/75 leading-snug drop-shadow-lg">
-                          {issue.imageAlt}
-                        </p>
                         <div className="flex items-center gap-2 text-xs text-white/80">
                           <span className="flex items-center gap-1">
                             <Thermometer className="w-3 h-3" />
@@ -1856,9 +1860,6 @@ const IoTSensors = () => {
                       </div>
                       <CardTitle className="text-base leading-tight">{issue.name}</CardTitle>
                       <CardDescription className="text-xs">{issue.description}</CardDescription>
-                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                        {issue.imageAlt}
-                      </p>
                     </CardHeader>
 
                     <CardContent className="space-y-3">
