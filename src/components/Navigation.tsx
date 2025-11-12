@@ -6,7 +6,6 @@ import {
   Activity,
   Settings,
   LogOut,
-  Building2,
   Camera,
   Video,
 } from "lucide-react";
@@ -21,7 +20,6 @@ const Navigation = () => {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
-    { path: "/organizations", label: "Organizations", icon: Building2 },
     { path: "/weather", label: "Weather", icon: MapPin },
     { path: "/monitor", label: "Monitoring", icon: Video },
     { path: "/sensors", label: "Sensors", icon: Activity },

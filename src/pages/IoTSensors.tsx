@@ -40,7 +40,7 @@ const IoTSensors = () => {
       defectType: "hotspot",
       severity: "critical",
       location: "Row 1, Panel 5",
-      thumbnail: "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=400&h=300&fit=crop",
+      videoUrl: "https://videos.pexels.com/video-files/4509544/4509544-uhd_2560_1440_25fps.mp4",
       description: "Thermal anomaly detected - immediate inspection required",
     },
     {
@@ -49,7 +49,7 @@ const IoTSensors = () => {
       defectType: "crack",
       severity: "high",
       location: "Row 2, Panel 12",
-      thumbnail: "https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?w=400&h=300&fit=crop",
+      videoUrl: "https://videos.pexels.com/video-files/8953563/8953563-uhd_2560_1440_25fps.mp4",
       description: "Visible crack detected on panel surface",
     },
     {
@@ -58,7 +58,7 @@ const IoTSensors = () => {
       defectType: "soiling",
       severity: "medium",
       location: "Row 3, Panel 8",
-      thumbnail: "https://images.unsplash.com/photo-1497440001374-f26997328c1b?w=400&h=300&fit=crop",
+      videoUrl: "https://videos.pexels.com/video-files/2278095/2278095-uhd_2560_1440_30fps.mp4",
       description: "Heavy dust accumulation reducing efficiency",
     },
     {
@@ -67,7 +67,7 @@ const IoTSensors = () => {
       defectType: "none",
       severity: "info",
       location: "Row 4, Panel 3",
-      thumbnail: "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=400&h=300&fit=crop",
+      videoUrl: "https://videos.pexels.com/video-files/7235122/7235122-uhd_2560_1440_30fps.mp4",
       description: "All panels operating within normal parameters",
     },
     {
@@ -76,7 +76,7 @@ const IoTSensors = () => {
       defectType: "delamination",
       severity: "high",
       location: "Row 5, Panel 15",
-      thumbnail: "https://images.unsplash.com/photo-1559302504-64aae6ca6b6d?w=400&h=300&fit=crop",
+      videoUrl: "https://videos.pexels.com/video-files/9648835/9648835-uhd_2560_1440_30fps.mp4",
       description: "Layer separation detected - monitor closely",
     },
     {
@@ -85,7 +85,7 @@ const IoTSensors = () => {
       defectType: "snail_trail",
       severity: "low",
       location: "Row 6, Panel 7",
-      thumbnail: "https://images.unsplash.com/photo-1509390144881-c8fc18f5a628?w=400&h=300&fit=crop",
+      videoUrl: "https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4",
       description: "Silver paste corrosion visible on cells",
     },
   ];
@@ -400,19 +400,15 @@ const IoTSensors = () => {
               {mockCameraFeeds.map((feed) => (
                 <Card key={feed.id} className="shadow-card overflow-hidden group">
                   <div className="relative aspect-video bg-black">
-                    <img
-                      src={feed.thumbnail}
-                      alt={feed.name}
+                    <video
+                      src={feed.videoUrl}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
                       className="w-full h-full object-cover opacity-80"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                    {/* Play overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                        <Play className="w-8 h-8 text-white ml-1" />
-                      </div>
-                    </div>
 
                     {/* Status badge */}
                     <div className="absolute top-2 left-2 flex items-center space-x-2">
@@ -433,7 +429,7 @@ const IoTSensors = () => {
 
                     {/* Location label */}
                     <div className="absolute bottom-2 left-2 right-2">
-                      <div className="text-white text-sm font-medium truncate">
+                      <div className="text-white text-sm font-medium truncate drop-shadow-lg">
                         {feed.location}
                       </div>
                     </div>
@@ -453,7 +449,7 @@ const IoTSensors = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                         <Video className="w-3 h-3" />
-                        <span>20s recording</span>
+                        <span>5s recording</span>
                       </div>
                       {feed.defectType !== "none" && (
                         <Badge variant="outline" className="text-xs capitalize">
