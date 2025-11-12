@@ -134,6 +134,7 @@ const IoTSensors = () => {
   const [deviceSummary, setDeviceSummary] = useState<DeviceMetricsSummary | null>(null);
   const [historicalSolarData, setHistoricalSolarData] = useState<DailySolarDataPoint[]>([]);
   const [historicalLoading, setHistoricalLoading] = useState(true);
+  const [forecastData, setForecastData] = useState<DailySolarDataPoint[]>([]);
 
   // Site parameters for PVWatts (can be made configurable later)
   const [siteParams, setSiteParams] = useState({
@@ -153,7 +154,7 @@ const IoTSensors = () => {
   // Filters for Metrics Data
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dayNightFilter, setDayNightFilter] = useState<'all' | 'day' | 'night'>('all');
-  const [viewMode, setViewMode] = useState<'hourly' | 'weekly' | 'monthly' | 'yearly'>('hourly');
+  const [viewMode, setViewMode] = useState<'hourly' | 'weekly' | 'monthly' | 'yearly' | 'forecast'>('hourly');
 
   // Fetch sensors data
   useEffect(() => {
@@ -226,16 +227,20 @@ const IoTSensors = () => {
       const startDate = new Date(endDate);
       startDate.setFullYear(startDate.getFullYear() - 2);
 
-      const historical = await openMeteoService.fetchHistoricalDailyData(
-        siteParams,
-        startDate.toISOString().split('T')[0],
-        endDate.toISOString().split('T')[0]
-      );
+      const [historical, forecast] = await Promise.all([
+        openMeteoService.fetchHistoricalDailyData(
+          siteParams,
+          startDate.toISOString().split('T')[0],
+          endDate.toISOString().split('T')[0]
+        ),
+        openMeteoService.fetchForecastData(siteParams)
+      ]);
 
       setHistoricalSolarData(historical);
-      console.log(`📈 Loaded ${historical.length} days of historical solar data`);
+      setForecastData(forecast);
+      console.log(`📈 Loaded ${historical.length} days historical + ${forecast.length} days forecast`);
     } catch (error) {
-      console.error('Error fetching historical solar data:', error);
+      console.error('Error fetching solar data:', error);
       toast.error('Failed to load historical solar data');
     } finally {
       setHistoricalLoading(false);
@@ -535,11 +540,11 @@ const IoTSensors = () => {
         bucket.cell / bucket.count
       )
     );
-  }, [solarData, historicalSolarData, viewMode, dayNightFilter, selectedDate]);
+  }, [solarData, historicalSolarData, forecastData, viewMode, dayNightFilter, selectedDate]);
 
   const chartUnits = useMemo(() => ({
-    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : 'Avg Power (kW)',
-    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : 'Avg Irradiance (W/m²)',
+    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : viewMode === 'forecast' ? 'Forecast Power (kW)' : 'Avg Power (kW)',
+    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : viewMode === 'forecast' ? 'Forecast Irradiance (W/m²)' : 'Avg Irradiance (W/m²)',
     tooltipPowerSuffix: viewMode === 'hourly' ? ' kW' : ' kW avg',
     tooltipIrrSuffix: viewMode === 'hourly' ? ' W/m²' : ' W/m² avg',
   }), [viewMode]);
@@ -565,6 +570,22 @@ const IoTSensors = () => {
       return {
         windowLabel: '30-day daily averages',
         totalSourcePoints: Math.min(30, historicalSolarData.length),
+        pointDescriptor: 'days',
+      };
+    }
+
+    if (viewMode === 'yearly') {
+      return {
+        windowLabel: '12-month monthly averages',
+        totalSourcePoints: Math.min(12, Math.ceil(historicalSolarData.length / 30)),
+        pointDescriptor: 'months',
+      };
+    }
+
+    if (viewMode === 'forecast') {
+      return {
+        windowLabel: '7-day forecast',
+        totalSourcePoints: forecastData.length,
         pointDescriptor: 'days',
       };
     }
@@ -965,14 +986,10 @@ const IoTSensors = () => {
 
         {/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="data">
               <Activity className="w-4 h-4 mr-2" />
               Metrics Data
-            </TabsTrigger>
-            <TabsTrigger value="analysis">
-              <Brain className="w-4 h-4 mr-2" />
-              Data Analysis
             </TabsTrigger>
             <TabsTrigger value="visual">
               <Video className="w-4 h-4 mr-2" />
@@ -1104,9 +1121,17 @@ const IoTSensors = () => {
                         variant={viewMode === 'yearly' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setViewMode('yearly')}
-                        className="rounded-l-none text-xs px-3"
+                        className="rounded-none border-r text-xs px-3"
                       >
                         Yearly
+                      </Button>
+                      <Button
+                        variant={viewMode === 'forecast' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('forecast')}
+                        className="rounded-r-none text-xs px-3"
+                      >
+                        Forecast
                       </Button>
                     </div>
                   </div>
@@ -1595,180 +1620,6 @@ const IoTSensors = () => {
             )}
           </TabsContent>
 
-          {/* Data Analysis Tab */}
-          <TabsContent value="analysis" className="space-y-6">
-            {aiSummary ? (
-              <>
-                <Card className="shadow-card border-purple-200 bg-gradient-to-r from-purple-50 via-blue-50 to-orange-50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-500" />
-                      AI-Driven Performance Snapshot
-                    </CardTitle>
-                    <CardDescription>
-                      Combined telemetry from irradiance, inverter, and battery sensors with heuristic AI insights
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div className="p-4 rounded-xl bg-white/70 border">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Health Score</p>
-                        <p className="text-3xl font-bold text-purple-600 mt-1">{aiSummary.healthScore.toFixed(1)}</p>
-                        <p className="text-xs text-muted-foreground mt-1">Risk: {aiSummary.riskLevel}</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/70 border">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Performance Ratio</p>
-                        <p className="text-3xl font-bold text-blue-600 mt-1">
-                          {aiSummary.performanceRatioPct !== null ? `${aiSummary.performanceRatioPct.toFixed(1)}%` : "—"}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">vs satellite baseline</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/70 border">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recovery Opportunity</p>
-                        <p className="text-3xl font-bold text-emerald-600 mt-1">{aiSummary.opportunityKwh.toFixed(1)} kWh</p>
-                        <p className="text-xs text-muted-foreground mt-1">Potential per day from losses</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-white/70 border">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent Output</p>
-                        <p className="text-3xl font-bold text-sky-600 mt-1">{aiSummary.avgRecentPower.toFixed(2)} kW</p>
-                        <p className="text-xs text-muted-foreground mt-1">Mean over last 6 samples</p>
-                      </div>
-                    </div>
-                    <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-                      {aiSummary.summaryBullets.map((bullet, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <ArrowUpRight className="w-4 h-4 mt-0.5 text-purple-500" />
-                          <span>{bullet}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Card className="shadow-card">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <ThermometerSun className="w-5 h-5 text-orange-500" />
-                        Thermal Watch
-                      </CardTitle>
-                      <CardDescription>Cell temperature derived from panel sensors</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <p className="font-semibold text-foreground">
-                        {aiSummary.temperatureFlag ?? "Thermal profile within nominal range"}
-                      </p>
-                      <p className="text-muted-foreground">
-                        Evaluate cleaning schedules or airflow if temperatures trend above 58°C to prevent accelerated degradation.
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="shadow-card">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BatteryCharging className="w-5 h-5 text-emerald-500" />
-                        Battery Outlook
-                      </CardTitle>
-                      <CardDescription>State-of-charge from hybrid storage model</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <p className="font-semibold text-foreground">
-                        {latestBatteryMetric
-                          ? `Latest SoC ${latestBatteryMetric.stateOfCharge.toFixed(1)}% — ${latestBatteryMetric.status}`
-                          : "Awaiting battery telemetry"}
-                      </p>
-                      <p className="text-muted-foreground">
-                        Target {deviceSummary?.battery.avgSoc.toFixed(1) ?? "--"}% average reserve to sustain night-time load coverage.
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="shadow-card">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Zap className="w-5 h-5 text-blue-500" />
-                        Inverter Efficiency
-                      </CardTitle>
-                      <CardDescription>AC conversion health from inverter sensors</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <p className="font-semibold text-foreground">
-                        {inverterAvgEfficiency !== null
-                          ? `Average efficiency ${inverterAvgEfficiency.toFixed(1)}%`
-                          : "Inverter metrics not available"}
-                      </p>
-                      <p className="text-muted-foreground">
-                        Monitor clipping and DC wiring losses during high irradiance windows to keep efficiency above 94%.
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <Card className="shadow-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Wrench className="w-5 h-5 text-solar-orange" />
-                      Recommended Actions
-                    </CardTitle>
-                    <CardDescription>Generated from sensor trends and AI heuristics</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {aiSummary.insights.length > 0 ? (
-                      <div className="space-y-4">
-                        {aiSummary.insights.map((insight) => (
-                          <div
-                            key={insight.id}
-                            className="p-4 rounded-xl border border-border hover:shadow-md transition-all"
-                          >
-                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant="outline" className={getInsightPillStyle(insight.severity)}>
-                                    {getInsightLabel(insight.severity)}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">{insight.metric}</span>
-                                </div>
-                                <h4 className="text-base font-semibold text-foreground">{insight.title}</h4>
-                                <p className="text-sm text-muted-foreground mt-2">{insight.summary}</p>
-                              </div>
-                              <div className="text-sm font-semibold text-foreground whitespace-nowrap">
-                                {insight.value}
-                              </div>
-                            </div>
-                            <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
-                              <Sparkles className="w-4 h-4 mt-0.5 text-purple-500" />
-                              <span>{insight.recommendation}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between rounded-lg border border-dashed p-6">
-                        <div>
-                          <p className="font-semibold text-foreground">All systems stable</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            No actionable issues detected from the latest telemetry window.
-                          </p>
-                        </div>
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            ) : (
-              <Card className="shadow-card">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Brain className="w-16 h-16 text-muted-foreground/50 mb-4 animate-pulse" />
-                  <h3 className="text-xl font-semibold mb-2">Preparing analysis…</h3>
-                  <p className="text-muted-foreground text-center max-w-md">
-                    AI insights will appear once live sensor data has been ingested. Refresh to pull the latest satellite and device metrics.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
 
           {/* Visual Monitoring Tab */}
           <TabsContent value="visual" className="space-y-6">
