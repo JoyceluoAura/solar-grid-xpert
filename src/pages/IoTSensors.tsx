@@ -34,6 +34,7 @@ import {
   ThermometerSun,
   BatteryCharging,
   ArrowUpRight,
+  CheckCircle2,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 import { supabase } from "@/integrations/supabase/client";

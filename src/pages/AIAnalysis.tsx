@@ -638,7 +638,7 @@ const AIAnalysis = () => {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-2xl">
+        <TabsList className="grid w-full grid-cols-4 max-w-3xl">
           <TabsTrigger value="overview">
             <Target className="w-4 h-4 mr-2" />
             Overview
@@ -646,6 +646,10 @@ const AIAnalysis = () => {
           <TabsTrigger value="insights">
             <AlertCircle className="w-4 h-4 mr-2" />
             AI Insights
+          </TabsTrigger>
+          <TabsTrigger value="data-analysis">
+            <Activity className="w-4 h-4 mr-2" />
+            Data Analysis
           </TabsTrigger>
           <TabsTrigger value="history">
             <BarChart3 className="w-4 h-4 mr-2" />
@@ -799,52 +803,176 @@ const AIAnalysis = () => {
           )}
         </TabsContent>
 
-        {/* AI INSIGHTS TAB */}
-        <TabsContent value="insights" className="space-y-6">
+        {/* DATA ANALYSIS TAB */}
+        <TabsContent value="data-analysis" className="space-y-6">
           {/* Detected Issues Section */}
           {!issuesLoading && solarIssues.length > 0 && (
             <Card className="shadow-card border-orange-200 bg-gradient-to-br from-orange-50/50 to-red-50/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-orange-600" />
-                  Detected Panel Issues
+                  Detected Panel Issues - Detailed Analysis
                 </CardTitle>
                 <CardDescription>
-                  Real-time visual monitoring detected {solarIssues.filter(i => i.severity === 'critical' || i.severity === 'high').length} critical/high severity issues
+                  Comprehensive data analysis of {solarIssues.length} detected issues with severity breakdown
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {solarIssues.filter(i => i.severity === 'critical' || i.severity === 'high').slice(0, 4).map((issue) => (
-                    <div key={issue.id} className="p-4 border border-border rounded-lg bg-white space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <p className="font-semibold text-sm">{issue.panel_id}</p>
-                          <p className="text-xs text-muted-foreground">{issue.location}</p>
+                <div className="space-y-6">
+                  {/* Summary Statistics */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-red-600">
+                          {solarIssues.filter(i => i.severity === 'critical').length}
                         </div>
-                        <Badge variant="outline" className={
-                          issue.severity === 'critical' 
-                            ? "bg-red-500/10 text-red-600 border-red-500/20"
-                            : "bg-orange-500/10 text-orange-600 border-orange-500/20"
-                        }>
-                          {issue.severity}
-                        </Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm"><span className="font-medium">Issue:</span> {issue.type}</p>
-                        <p className="text-sm"><span className="font-medium">Energy Loss:</span> {issue.energy_loss_percent}% ({issue.predicted_kwh_loss} kWh/day)</p>
-                        <p className="text-sm"><span className="font-medium">AI Confidence:</span> {Math.round(issue.confidence * 100)}%</p>
-                      </div>
-                      <div className="pt-2 border-t">
-                        <p className="text-xs font-semibold mb-1">Top Action:</p>
-                        <p className="text-xs text-muted-foreground">{issue.recommended_actions[0]}</p>
-                      </div>
-                    </div>
-                  ))}
+                        <div className="text-xs text-muted-foreground">Critical</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {solarIssues.filter(i => i.severity === 'high').length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">High</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-yellow-600">
+                          {solarIssues.filter(i => i.severity === 'medium').length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Medium</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {solarIssues.filter(i => i.severity === 'low').length}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Low</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Detailed Issue List */}
+                  <div className="space-y-4">
+                    {solarIssues.map((issue) => (
+                      <Card key={issue.id} className="border-l-4" style={{
+                        borderLeftColor: issue.severity === 'critical' ? '#dc2626' :
+                          issue.severity === 'high' ? '#ea580c' :
+                          issue.severity === 'medium' ? '#ca8a04' : '#3b82f6'
+                      }}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg">{issue.panel_id}</CardTitle>
+                              <CardDescription>{issue.location}</CardDescription>
+                            </div>
+                            <Badge variant="outline" className={
+                              issue.severity === 'critical' ? "bg-red-500/10 text-red-600 border-red-500/20" :
+                              issue.severity === 'high' ? "bg-orange-500/10 text-orange-600 border-orange-500/20" :
+                              issue.severity === 'medium' ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" :
+                              "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                            }>
+                              {issue.severity}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* Issue Details */}
+                          <div className="grid md:grid-cols-3 gap-4">
+                            <div className="p-3 bg-muted/50 rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">Issue Type</p>
+                              <p className="font-semibold">{issue.type}</p>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">Energy Loss</p>
+                              <p className="font-semibold">{issue.energy_loss_percent}%</p>
+                              <p className="text-xs text-muted-foreground">{issue.predicted_kwh_loss} kWh/day</p>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg">
+                              <p className="text-xs text-muted-foreground mb-1">AI Confidence</p>
+                              <p className="font-semibold">{Math.round(issue.confidence * 100)}%</p>
+                            </div>
+                          </div>
+
+                          {/* Sensor Data Grid */}
+                          <div>
+                            <p className="text-sm font-semibold mb-2">Sensor Readings</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <div className="p-2 bg-background border rounded">
+                                <p className="text-xs text-muted-foreground">Panel Temp</p>
+                                <p className="font-medium">{issue.sensor_data.panel_temp}°C</p>
+                              </div>
+                              <div className="p-2 bg-background border rounded">
+                                <p className="text-xs text-muted-foreground">Ambient Temp</p>
+                                <p className="font-medium">{issue.sensor_data.ambient_temp}°C</p>
+                              </div>
+                              <div className="p-2 bg-background border rounded">
+                                <p className="text-xs text-muted-foreground">Irradiance</p>
+                                <p className="font-medium">{issue.sensor_data.irradiance} W/m²</p>
+                              </div>
+                              <div className="p-2 bg-background border rounded">
+                                <p className="text-xs text-muted-foreground">Power Output</p>
+                                <p className="font-medium">{issue.sensor_data.power_output} W</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Priority & Dispatch */}
+                          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Dispatch Priority</p>
+                              <p className="font-semibold capitalize">{issue.dispatch_priority}</p>
+                            </div>
+                            {issue.is_live && (
+                              <Badge className="bg-red-600 text-white">
+                                <span className="animate-pulse mr-1">●</span> LIVE
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Recommended Actions */}
+                          <div>
+                            <p className="text-sm font-semibold mb-2">Recommended Actions</p>
+                            <ul className="space-y-2">
+                              {issue.recommended_actions.map((action, idx) => (
+                                <li key={idx} className="flex items-start gap-2 text-sm p-2 bg-background border rounded">
+                                  <span className="text-muted-foreground font-bold">{idx + 1}.</span>
+                                  <span>{action}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Error Messages */}
+                          {issue.has_sensor_error && issue.error_message && (
+                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-600">
+                              <p className="font-semibold flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" />
+                                Sensor Error
+                              </p>
+                              <p className="text-xs mt-1">{issue.error_message}</p>
+                            </div>
+                          )}
+
+                          {/* Detection Info */}
+                          <div className="text-xs text-muted-foreground pt-2 border-t">
+                            Detected: {new Date(issue.detected_at).toLocaleString()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* AI INSIGHTS TAB */}
+        <TabsContent value="insights" className="space-y-6">
 
           {/* Filters */}
           <Card className="shadow-card">
