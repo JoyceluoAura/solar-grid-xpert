@@ -228,24 +228,26 @@ class OpenMeteoService {
     for (let i = 23; i >= 0; i--) {
       const hourDate = new Date(now);
       hourDate.setHours(now.getHours() - i);
-      const hour = hourDate.getHours();
 
-      // Simulate solar generation curve (peaks at noon)
-      // Adjust for Jakarta timezone (UTC+7)
-      const localHour = (hour + 7) % 24;
-      const solarFactor = Math.max(0, Math.sin(((localHour - 6) / 12) * Math.PI));
+      // Get Jakarta local hour (UTC+7)
+      const utcHour = hourDate.getUTCHours();
+      const jakartaHour = (utcHour + 7) % 24;
+
+      // Simulate solar generation curve (peaks at noon local time)
+      const solarFactor = Math.max(0, Math.sin(((jakartaHour - 6) / 12) * Math.PI));
       const baseCapacity = params.system_capacity;
-      const randomVariation = 1 + (Math.random() - 0.5) * 0.2;
+      const randomVariation = 1 + (Math.random() - 0.5) * 0.15;
 
-      const irradiance = 1000 * solarFactor * randomVariation;
-      const ambientTemp = 25 + (solarFactor * 10) + (Math.random() * 5);
+      // More realistic values for Jakarta
+      const irradiance = Math.max(0, Math.round(1000 * solarFactor * randomVariation));
+      const ambientTemp = Math.round((27 + (solarFactor * 6) + (Math.random() * 3)) * 10) / 10; // 27-36°C range
       const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
       const dcPower = this.calculateDCPower(irradiance, baseCapacity, cellTemp);
       const acPower = this.calculateACPower(dcPower);
 
       data.push({
         timestamp: hourDate.toISOString(),
-        hour: hour.toString().padStart(2, '0') + ':00',
+        hour: jakartaHour.toString().padStart(2, '0') + ':00',
         ac_output: acPower,
         dc_output: dcPower,
         irradiance: irradiance,
