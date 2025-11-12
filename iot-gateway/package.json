@@ -1,0 +1,28 @@
+{
+  "name": "solargridx-iot-gateway",
+  "version": "1.0.0",
+  "description": "IoT Gateway for off-grid solar site monitoring with offline caching",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node src/test-client.js"
+  },
+  "keywords": ["iot", "solar", "mqtt", "modbus", "off-grid"],
+  "author": "SolarGridX",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "mqtt": "^5.3.0",
+    "better-sqlite3": "^9.2.2",
+    "cors": "^2.8.5",
+    "modbus-serial": "^8.0.16",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

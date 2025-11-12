@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# IoT Gateway
+iot-gateway/data/*.db
+iot-gateway/data/*.db-journal
+iot-gateway/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
