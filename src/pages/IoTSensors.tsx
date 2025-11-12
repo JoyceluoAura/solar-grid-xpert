@@ -549,7 +549,7 @@ const IoTSensors = () => {
                             }}
                             formatter={(value: any, name: string) => [
                               `${value.toFixed(1)}°C`,
-                              name === 'cell_temp' ? 'Cell Temp' : 'Ambient Temp'
+                              name
                             ]}
                           />
                           <Legend />

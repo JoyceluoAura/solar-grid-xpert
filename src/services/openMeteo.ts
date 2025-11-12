@@ -178,6 +178,11 @@ class OpenMeteoService {
         const timestamp = radiationData.hourly.time[i];
         const date = new Date(timestamp);
 
+        // Extract hour from timestamp string (Open-Meteo returns local time with timezone=auto)
+        // Format: "2025-01-12T14:00" - extract the hour part
+        const hourMatch = timestamp.match(/T(\d{2}):/);
+        const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
+
         const irradiance = radiationData.hourly.shortwave_radiation[i] || 0;
         const ambientTemp = weatherData?.hourly.temperature_2m?.[i] || 25;
         const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
@@ -187,7 +192,7 @@ class OpenMeteoService {
 
         hourlyData.push({
           timestamp: date.toISOString(),
-          hour: date.getHours().toString().padStart(2, '0') + ':00',
+          hour: localHour,
           ac_output: acPower,
           dc_output: dcPower,
           irradiance: irradiance,

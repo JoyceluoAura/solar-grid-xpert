@@ -3,13 +3,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Calculator, MapPin, Battery, Zap, Cloud, Droplets, ChevronDown } from "lucide-react";
+import { Calculator, MapPin, Battery, Zap, Cloud, Droplets, ChevronDown, Save } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const AddSite = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const marker = useRef<L.Marker | null>(null);
@@ -298,14 +303,49 @@ const AddSite = () => {
     toast.success("Site evaluation complete!");
   };
 
+  const saveSite = async () => {
+    if (!user) {
+      toast.error("You must be logged in to save a site");
+      return;
+    }
+
+    if (!formData.siteName || !formData.latitude || !formData.longitude) {
+      toast.error("Please provide site name and calculate potential first");
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("sites").insert({
+        user_id: user.id,
+        site_name: formData.siteName,
+        latitude: parseFloat(formData.latitude),
+        longitude: parseFloat(formData.longitude),
+        address: formData.address,
+        system_size_kwp: formData.systemSize ? parseFloat(formData.systemSize) : null,
+        panel_efficiency: formData.panelEfficiency ? parseFloat(formData.panelEfficiency) : null,
+        tilt_angle: formData.tiltAngle ? parseFloat(formData.tiltAngle) : null,
+        azimuth: formData.azimuth ? parseFloat(formData.azimuth) : null,
+        daily_load_kwh: formData.dailyLoad ? parseFloat(formData.dailyLoad) : null,
+        days_of_autonomy: formData.daysOfAutonomy ? parseInt(formData.daysOfAutonomy) : null,
+      });
+
+      if (error) throw error;
+
+      toast.success("Site saved successfully!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save site");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
         <div>
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-energy-blue to-solar-orange bg-clip-text text-transparent">
-            Weather Intelligence
+            Add Site
           </h1>
-          <p className="text-muted-foreground">Calculate solar potential and weather patterns for your site</p>
+          <p className="text-muted-foreground">Calculate solar potential, analyze weather patterns, and save your site</p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">
@@ -533,6 +573,16 @@ const AddSite = () => {
                         <p className="text-2xl font-bold text-foreground">{results.inverterSize} kW</p>
                       </div>
                     </div>
+
+                    {/* Save Site Button */}
+                    <Button
+                      onClick={saveSite}
+                      className="w-full gradient-energy text-white mt-4"
+                      size="lg"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Site to Database
+                    </Button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-[200px] text-center">
