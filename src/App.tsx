@@ -16,6 +16,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Monitor from "./pages/Monitor";
 import Evaluate from "./pages/Evaluate";
+import AIAnalysis from "./pages/AIAnalysis";
 import VisualMonitoring from "./pages/VisualMonitoring";
 import RealTimeMonitor from "./pages/RealTimeMonitor";
 
@@ -85,6 +86,15 @@ const App = () => (
                 <ProtectedRoute>
                   <Navigation />
                   <VisualMonitoring />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ai-analysis"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <AIAnalysis />
                 </ProtectedRoute>
               }
             />

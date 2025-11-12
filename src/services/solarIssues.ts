@@ -51,9 +51,6 @@ export interface SolarIssue {
   // Video and visual
   videoUrl: string;
   posterUrl: string;
-  imageUrl: string;
-  imageAlt: string;
-  imageLocation: string;
 
   // AI metrics
   confidence: number;           // 0-1 confidence score
@@ -88,9 +85,6 @@ interface IssueMapping {
   type: IssueType;
   videoUrl: string;
   posterUrl: string;
-  imageUrl: string;
-  imageAlt: string;
-  imageLocation: string;
   description: string;
   typical_severity: SeverityLevel;
   energy_loss_range: [number, number]; // min, max %
@@ -108,9 +102,6 @@ class SolarIssueService {
       type: 'hotspot',
       videoUrl: 'https://videos.pexels.com/video-files/8092472/8092472-uhd_2560_1440_25fps.mp4',
       posterUrl: createPoster('Hotspot Detected', 'Cell overheating pattern', '#ef4444', '#f97316'),
-      imageUrl: '/images/visual/panel-hotspot.svg',
-      imageAlt: 'Infrared visualization of thermal hotspot on Batam industrial solar array in Indonesia',
-      imageLocation: 'Batam Industrial Park, Riau Islands',
       description: 'Thermal anomaly detected - immediate inspection required',
       typical_severity: 'critical',
       energy_loss_range: [15, 35],
@@ -126,9 +117,6 @@ class SolarIssueService {
       type: 'crack',
       videoUrl: 'https://videos.pexels.com/video-files/9604094/9604094-uhd_2560_1440_24fps.mp4',
       posterUrl: createPoster('Cracked Glass', 'Micro-fracture on string', '#7c3aed', '#ec4899'),
-      imageUrl: '/images/visual/panel-cracks.svg',
-      imageAlt: 'Cracked solar module on Bandung rooftop installation after hail event in Indonesia',
-      imageLocation: 'Bandung Textile Warehouse, West Java',
       description: 'Physical crack detected on panel surface',
       typical_severity: 'high',
       energy_loss_range: [10, 25],
@@ -144,9 +132,6 @@ class SolarIssueService {
       type: 'soiling',
       videoUrl: 'https://videos.pexels.com/video-files/6076970/6076970-uhd_3840_2160_25fps.mp4',
       posterUrl: createPoster('Bird Droppings', 'Soiling across cells', '#ca8a04', '#facc15'),
-      imageUrl: '/images/visual/panel-bird-droppings.svg',
-      imageAlt: 'Bird droppings across Surabaya port warehouse solar rooftop in Indonesia',
-      imageLocation: 'Surabaya Port Logistics Rooftop, East Java',
       description: 'Heavy dust accumulation reducing efficiency',
       typical_severity: 'medium',
       energy_loss_range: [5, 15],
@@ -162,9 +147,6 @@ class SolarIssueService {
       type: 'delamination',
       videoUrl: 'https://videos.pexels.com/video-files/4496260/4496260-uhd_3840_2160_24fps.mp4',
       posterUrl: createPoster('Delamination', 'Encapsulant bubbling', '#0ea5e9', '#22d3ee'),
-      imageUrl: '/images/visual/panel-delamination.svg',
-      imageAlt: 'Encapsulant delamination bubbles on Sleman community solar project in Yogyakarta, Indonesia',
-      imageLocation: 'Sleman Community Solar, Special Region of Yogyakarta',
       description: 'Layer separation detected - monitor closely',
       typical_severity: 'high',
       energy_loss_range: [12, 30],
@@ -180,9 +162,6 @@ class SolarIssueService {
       type: 'shadow',
       videoUrl: 'https://videos.pexels.com/video-files/6077448/6077448-uhd_3840_2160_25fps.mp4',
       posterUrl: createPoster('Cloud Shading', 'Passing cumulus cover', '#1d4ed8', '#0ea5e9'),
-      imageUrl: '/images/visual/panel-shadow.svg',
-      imageAlt: 'Jakarta central business district rooftop solar array under drifting cloud shadows',
-      imageLocation: 'Jakarta CBD Rooftop, DKI Jakarta',
       description: 'Shading detected affecting output',
       typical_severity: 'medium',
       energy_loss_range: [20, 50],
@@ -198,27 +177,21 @@ class SolarIssueService {
       type: 'snow',
       videoUrl: 'https://videos.pexels.com/video-files/2675514/2675514-uhd_2560_1440_25fps.mp4',
       posterUrl: createPoster('Snow Cover', 'Panels partially buried', '#94a3b8', '#38bdf8'),
-      imageUrl: '/images/visual/panel-monsoon.svg',
-      imageAlt: 'Monsoon rainfall pooling on Bekasi industrial rooftop solar array in Indonesia',
-      imageLocation: 'Bekasi Industrial Estate, West Java',
-      description: 'Heavy monsoon rainwater pooling reduces irradiance and increases PID risk',
-      typical_severity: 'medium',
-      energy_loss_range: [18, 35],
-      visual_effect: 'Surface water reflecting sky and diffusing irradiance',
+      description: 'Snow coverage affecting generation',
+      typical_severity: 'low',
+      energy_loss_range: [80, 100],
+      visual_effect: 'Snow layer on panel surface',
       recommendations: [
-        'Verify drainage paths and tilt angles after downpours',
-        'Schedule post-rain inspection for potential PID hotspots',
-        'Install guttering to divert roof runoff away from arrays',
-        'Log rainfall intensity to correlate with output recovery'
+        'Monitor for natural snow melt',
+        'Consider snow removal if urgent',
+        'Check tilt angle optimization',
+        'Install heating elements for frequent snow'
       ]
     },
     none: {
       type: 'none',
       videoUrl: 'https://videos.pexels.com/video-files/2611250/2611250-uhd_2560_1440_30fps.mp4',
       posterUrl: createPoster('All Clear', 'No issues detected', '#4ade80', '#22c55e'),
-      imageUrl: '/images/visual/panel-perfect.svg',
-      imageAlt: 'Floating solar array on Cirata Reservoir operating at peak performance in Indonesia',
-      imageLocation: 'Cirata Floating Solar Park, West Java',
       description: 'All panels operating within normal parameters',
       typical_severity: 'info',
       energy_loss_range: [0, 2],
@@ -385,9 +358,6 @@ class SolarIssueService {
       location,
       videoUrl: mapping.videoUrl,
       posterUrl: mapping.posterUrl,
-      imageUrl: mapping.imageUrl,
-      imageAlt: mapping.imageAlt,
-      imageLocation: mapping.imageLocation,
       confidence,
       energy_loss_percent: Math.round(energyLoss * 10) / 10,
       predicted_kwh_loss: Math.round(predictedKwhLoss * 10) / 10,
@@ -458,19 +428,15 @@ class SolarIssueService {
     weatherData: SolarWeatherData,
     issueCount: number = 6
   ): SolarIssue[] {
-    const scenes: Array<{ type: IssueType; panelId: string; location: string }> = [
-      { type: 'hotspot', panelId: 'Batam-A1', location: this.issueMapping.hotspot.imageLocation },
-      { type: 'crack', panelId: 'Bandung-C2', location: this.issueMapping.crack.imageLocation },
-      { type: 'soiling', panelId: 'Surabaya-B3', location: this.issueMapping.soiling.imageLocation },
-      { type: 'delamination', panelId: 'Sleman-D4', location: this.issueMapping.delamination.imageLocation },
-      { type: 'shadow', panelId: 'Jakarta-E5', location: this.issueMapping.shadow.imageLocation },
-      { type: 'none', panelId: 'Cirata-F6', location: this.issueMapping.none.imageLocation },
-    ];
-
     const issues: SolarIssue[] = [];
-    for (let i = 0; i < Math.min(issueCount, scenes.length); i++) {
-      const scene = scenes[i];
-      issues.push(this.generateIssue(scene.type, scene.panelId, scene.location, weatherData, siteId));
+    const issueTypes: IssueType[] = ['hotspot', 'crack', 'soiling', 'delamination', 'shadow', 'none'];
+
+    for (let i = 0; i < issueCount; i++) {
+      const issueType = issueTypes[i];
+      const panelId = `Array-${String.fromCharCode(65 + i)}-${i + 1}`;
+      const location = `Row ${i + 1}, Panel ${(i % 5) + 1}`;
+
+      issues.push(this.generateIssue(issueType, panelId, location, weatherData, siteId));
     }
 
     return issues;
