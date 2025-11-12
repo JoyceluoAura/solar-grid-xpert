@@ -542,4 +542,11 @@ class SolarIssueService {
 // Export singleton instance
 export const solarIssueService = SolarIssueService.getInstance();
 
-export type { IssueType, SeverityLevel } from './solarIssueTypes';
+export type {
+  IssueType,
+  SeverityLevel,
+  IssueAssetDefinition,
+  SolarIssueHistoryTemplate,
+} from './solarIssueTypes';
+
+export { ISSUE_ASSET_LIBRARY } from './solarIssueAssets';
