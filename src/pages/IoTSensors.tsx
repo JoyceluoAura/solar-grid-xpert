@@ -26,6 +26,9 @@ import {
   AlertTriangle,
   Wrench,
   Eye,
+  Calendar,
+  Filter,
+  Moon,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,6 +72,11 @@ const IoTSensors = () => {
   const [weatherData, setWeatherData] = useState<SolarWeatherData | null>(null);
   const [issuesLoading, setIssuesLoading] = useState(true);
   const [visualLastUpdated, setVisualLastUpdated] = useState<Date>(new Date());
+
+  // Filters for Metrics Data
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [dayNightFilter, setDayNightFilter] = useState<'all' | 'day' | 'night'>('all');
+  const [viewMode, setViewMode] = useState<'hourly' | 'weekly' | 'monthly'>('hourly');
 
   // Fetch sensors data
   useEffect(() => {
@@ -252,6 +260,24 @@ const IoTSensors = () => {
     }
   };
 
+  // Filter solar data based on date and day/night
+  const getFilteredSolarData = () => {
+    let filtered = solarData;
+
+    // Apply day/night filter
+    if (dayNightFilter !== 'all') {
+      filtered = filtered.filter(dataPoint => {
+        const hour = parseInt(dataPoint.hour.split(':')[0]);
+        const isDaytime = hour >= 6 && hour < 18;
+        return dayNightFilter === 'day' ? isDaytime : !isDaytime;
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredSolarData = getFilteredSolarData();
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -352,6 +378,55 @@ const IoTSensors = () => {
           </Dialog>
         </div>
 
+        {/* Connected Sensors */}
+        {sensors.length > 0 && (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-solar-orange" />
+                Connected Sensors ({sensors.length})
+              </CardTitle>
+              <CardDescription>IoT devices monitoring your solar installation</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sensors.map((sensor) => {
+                  const Icon = getSensorIcon(sensor.sensor_type);
+                  const statusColor = getStatusColor(sensor.status);
+                  return (
+                    <div
+                      key={sensor.id}
+                      className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-lg gradient-${sensor.sensor_type === 'battery' ? 'eco' : sensor.sensor_type === 'inverter' ? 'energy' : 'solar'} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-semibold text-foreground truncate">{sensor.sensor_name}</h3>
+                            <span className={`text-xs font-medium ${statusColor} capitalize`}>
+                              {sensor.status}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground capitalize mb-2">
+                            {sensor.sensor_type.replace('_', ' ')}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="truncate">{sensor.protocol.toUpperCase()}</span>
+                            <span>•</span>
+                            <span className="truncate">{sensor.device_id}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
@@ -408,23 +483,130 @@ const IoTSensors = () => {
               </CardContent>
             </Card>
 
+            {/* Data Filters */}
+            <Card className="shadow-card">
+              <CardContent className="pt-6">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Filters:</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-40 h-9"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex rounded-md border">
+                      <Button
+                        variant={dayNightFilter === 'all' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDayNightFilter('all')}
+                        className="rounded-r-none"
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={dayNightFilter === 'day' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDayNightFilter('day')}
+                        className="rounded-none border-x"
+                      >
+                        <Sun className="w-4 h-4 mr-1" />
+                        Day
+                      </Button>
+                      <Button
+                        variant={dayNightFilter === 'night' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setDayNightFilter('night')}
+                        className="rounded-l-none"
+                      >
+                        <Moon className="w-4 h-4 mr-1" />
+                        Night
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-xs font-medium mr-2">View:</span>
+                    <div className="flex rounded-md border">
+                      <Button
+                        variant={viewMode === 'hourly' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('hourly')}
+                        className="rounded-r-none text-xs px-3"
+                      >
+                        Hourly
+                      </Button>
+                      <Button
+                        variant={viewMode === 'weekly' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('weekly')}
+                        className="rounded-none border-x text-xs px-3"
+                      >
+                        Weekly
+                      </Button>
+                      <Button
+                        variant={viewMode === 'monthly' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('monthly')}
+                        className="rounded-l-none text-xs px-3"
+                      >
+                        Monthly
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="w-full text-xs text-muted-foreground">
+                    Showing {filteredSolarData.length} of {solarData.length} data points • {viewMode === 'hourly' ? '24 hours' : viewMode === 'weekly' ? '7 days' : '30 days'} view
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* View Mode Info */}
+            {(viewMode === 'weekly' || viewMode === 'monthly') && (
+              <Card className="shadow-card border-blue-200 bg-blue-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-900">
+                      <p className="font-medium mb-1">Limited Historical Data</p>
+                      <p className="text-xs">
+                        Currently displaying 24 hours of data. Weekly and monthly views show the same timeframe.
+                        For extended historical analysis, configure longer data retention in your system settings.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Solar Performance Charts */}
-            {solarData.length > 0 ? (
+            {filteredSolarData.length > 0 ? (
               <>
                 {/* AC Power Output Chart */}
                 <Card className="shadow-card">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Zap className="w-5 h-5 text-orange-500" />
-                      AC Power Output (24-Hour)
+                      AC Power Output ({viewMode === 'hourly' ? '24-Hour' : viewMode === 'weekly' ? '7-Day' : '30-Day'})
                     </CardTitle>
                     <CardDescription>
-                      Live hourly AC power generation from solar panels
+                      {viewMode === 'hourly' ? 'Live hourly AC power generation from solar panels' :
+                       viewMode === 'weekly' ? 'Weekly AC power generation trend' :
+                       'Monthly AC power generation overview'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={solarData}>
+                      <AreaChart data={filteredSolarData}>
                         <defs>
                           <linearGradient id="colorAC" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#f97316" stopOpacity={0.8} />
@@ -464,19 +646,19 @@ const IoTSensors = () => {
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-orange-50 to-white border">
                         <p className="text-xs text-muted-foreground">Current Output</p>
                         <p className="text-xl font-bold text-orange-600">
-                          {solarData[solarData.length - 1]?.ac_output.toFixed(2)} kW
+                          {filteredSolarData[filteredSolarData.length - 1]?.ac_output.toFixed(2)} kW
                         </p>
                       </div>
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-blue-50 to-white border">
                         <p className="text-xs text-muted-foreground">Peak Output</p>
                         <p className="text-xl font-bold text-blue-600">
-                          {Math.max(...solarData.map(d => d.ac_output)).toFixed(2)} kW
+                          {Math.max(...filteredSolarData.map(d => d.ac_output)).toFixed(2)} kW
                         </p>
                       </div>
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-green-50 to-white border">
                         <p className="text-xs text-muted-foreground">Avg Output</p>
                         <p className="text-xl font-bold text-green-600">
-                          {(solarData.reduce((sum, d) => sum + d.ac_output, 0) / solarData.length).toFixed(2)} kW
+                          {(filteredSolarData.reduce((sum, d) => sum + d.ac_output, 0) / filteredSolarData.length).toFixed(2)} kW
                         </p>
                       </div>
                     </div>
@@ -496,7 +678,7 @@ const IoTSensors = () => {
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={solarData}>
+                        <LineChart data={filteredSolarData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
                             dataKey="hour"
@@ -527,7 +709,7 @@ const IoTSensors = () => {
                       <div className="mt-3 flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Current</span>
                         <span className="font-semibold text-yellow-600">
-                          {solarData[solarData.length - 1]?.irradiance.toFixed(0)} W/m²
+                          {filteredSolarData[filteredSolarData.length - 1]?.irradiance.toFixed(0)} W/m²
                         </span>
                       </div>
                     </CardContent>
@@ -544,7 +726,7 @@ const IoTSensors = () => {
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={solarData}>
+                        <LineChart data={filteredSolarData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
                             dataKey="hour"
@@ -588,7 +770,7 @@ const IoTSensors = () => {
                       <div className="mt-3 flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Cell Temp</span>
                         <span className="font-semibold text-red-600">
-                          {solarData[solarData.length - 1]?.cell_temp.toFixed(1)}°C
+                          {filteredSolarData[filteredSolarData.length - 1]?.cell_temp.toFixed(1)}°C
                         </span>
                       </div>
                     </CardContent>
@@ -606,19 +788,19 @@ const IoTSensors = () => {
                           <div>
                             <span className="text-muted-foreground">Total Energy:</span>
                             <span className="font-semibold ml-1">
-                              {(solarData.reduce((sum, d) => sum + d.ac_output, 0)).toFixed(1)} kWh
+                              {(filteredSolarData.reduce((sum, d) => sum + d.ac_output, 0)).toFixed(1)} kWh
                             </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Peak Irradiance:</span>
                             <span className="font-semibold ml-1">
-                              {Math.max(...solarData.map(d => d.irradiance)).toFixed(0)} W/m²
+                              {Math.max(...filteredSolarData.map(d => d.irradiance)).toFixed(0)} W/m²
                             </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Avg Cell Temp:</span>
                             <span className="font-semibold ml-1">
-                              {(solarData.reduce((sum, d) => sum + d.cell_temp, 0) / solarData.length).toFixed(1)}°C
+                              {(filteredSolarData.reduce((sum, d) => sum + d.cell_temp, 0) / filteredSolarData.length).toFixed(1)}°C
                             </span>
                           </div>
                           <div>
@@ -839,54 +1021,6 @@ const IoTSensors = () => {
                   <p className="text-muted-foreground text-center mb-6">
                     Fetching AI-powered issue detection with weather context
                   </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* AI Insights Summary */}
-            {solarIssues.length > 0 && (
-              <Card className="shadow-card border-orange-200 bg-gradient-to-r from-orange-50 to-yellow-50">
-                <CardContent className="pt-6">
-                  <div className="flex items-start space-x-3">
-                    <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium mb-2">AI Analysis Summary</p>
-                      <div className="grid grid-cols-4 gap-4 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Critical Issues:</span>
-                          <span className="font-semibold ml-1 text-red-600">
-                            {solarIssues.filter((i) => i.severity === 'critical').length}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">High Priority:</span>
-                          <span className="font-semibold ml-1 text-orange-600">
-                            {solarIssues.filter((i) => i.severity === 'high').length}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Avg Confidence:</span>
-                          <span className="font-semibold ml-1">
-                            {(
-                              (solarIssues.reduce((sum, i) => sum + i.confidence, 0) /
-                                solarIssues.length) *
-                              100
-                            ).toFixed(0)}
-                            %
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Total Energy Loss:</span>
-                          <span className="font-semibold ml-1 text-red-600">
-                            {solarIssues.reduce((sum, i) => sum + i.predicted_kwh_loss, 0).toFixed(1)} kWh/day
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-3 text-xs text-muted-foreground">
-                        Data sources: NASA POWER API • Open-Meteo • AI-powered anomaly detection
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             )}
