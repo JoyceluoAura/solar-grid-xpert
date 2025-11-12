@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import KPICard from "@/components/KPICard";
-import { Zap, Battery, TrendingUp, AlertTriangle, MapPin, Plus } from "lucide-react";
+import { Zap, Battery, TrendingUp, AlertTriangle, MapPin, Plus, AlertOctagon } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,11 +19,22 @@ interface Site {
   system_size_kwp: number;
 }
 
+interface AlertItem {
+  id: string;
+  alert_type: string;
+  message: string;
+  severity: string;
+  created_at: string | null;
+  site_id: string | null;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
+  const [highSeverityAlerts, setHighSeverityAlerts] = useState<AlertItem[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
 
   // Mock data for 30-day forecast
   const forecastData = Array.from({ length: 30 }, (_, i) => ({
@@ -32,13 +44,16 @@ const Dashboard = () => {
   }));
 
   useEffect(() => {
+    if (!user) return;
     fetchSites();
+    fetchHighSeverityAlerts();
   }, [user]);
 
   const fetchSites = async () => {
     if (!user) return;
 
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from("sites")
         .select("*")
@@ -56,6 +71,47 @@ const Dashboard = () => {
     }
   };
 
+  const fetchHighSeverityAlerts = async () => {
+    if (!user) return;
+
+    try {
+      setAlertsLoading(true);
+      const { data, error } = await supabase
+        .from("alerts")
+        .select("id, alert_type, message, severity, created_at, site_id")
+        .eq("user_id", user.id)
+        .eq("is_resolved", false)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      const severeAlerts = (data || []).filter((alert) => {
+        const normalizedSeverity = alert.severity ? alert.severity.toLowerCase() : "";
+        return ["high", "critical"].includes(normalizedSeverity);
+      }) as AlertItem[];
+
+      setHighSeverityAlerts(severeAlerts);
+    } catch (error) {
+      console.error("Failed to load high severity alerts", error);
+    } finally {
+      setAlertsLoading(false);
+    }
+  };
+
+  const formatLabel = (value?: string | null) =>
+    (value || "")
+      .split("_")
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ") || "N/A";
+
+  const getSiteName = (siteId: string | null) => {
+    if (!siteId) return "All Sites";
+    const site = sites.find((item) => item.id === siteId);
+    return site ? site.site_name : "Unknown Site";
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -71,6 +127,51 @@ const Dashboard = () => {
             Add Site
           </Button>
         </div>
+
+        {!alertsLoading && highSeverityAlerts.length > 0 && (
+          <Card className="shadow-card border-destructive/40 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertOctagon className="w-5 h-5 text-destructive" />
+                High Severity Action Items
+              </CardTitle>
+              <CardDescription>
+                Immediate attention is recommended for the following unresolved issues.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {highSeverityAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="space-y-2 rounded-lg border border-destructive/30 bg-background/70 p-4"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="destructive" className="uppercase tracking-wide">
+                      {formatLabel(alert.severity)}
+                    </Badge>
+                    <span className="text-xs font-medium text-muted-foreground uppercase">
+                      {formatLabel(alert.alert_type)}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-foreground">{alert.message}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-[11px] uppercase tracking-wide">
+                      {getSiteName(alert.site_id)}
+                    </Badge>
+                    <span>
+                      {alert.created_at
+                        ? new Date(alert.created_at).toLocaleString()
+                        : "Timestamp unavailable"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" className="w-full" onClick={() => navigate("/realtime")}>
+                View detailed monitoring
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Sites List */}
         {sites.length > 0 ? (
