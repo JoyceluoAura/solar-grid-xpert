@@ -7,12 +7,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Wifi, Plus, AlertCircle, Activity, Thermometer, Zap, Battery, Camera, Video, Sun, RefreshCw, TrendingUp } from "lucide-react";
+import {
+  Wifi,
+  Plus,
+  AlertCircle,
+  Activity,
+  Thermometer,
+  Zap,
+  Battery,
+  Camera,
+  Video,
+  Sun,
+  RefreshCw,
+  TrendingUp,
+  Cloud,
+  Wind,
+  Droplets,
+  AlertTriangle,
+  Wrench,
+  Eye,
+} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { pvWattsService, SolarDataPoint } from "@/services/pvwatts";
+import { nasaPowerService, SolarWeatherData } from "@/services/nasaPower";
+import { solarIssueService, SolarIssue } from "@/services/solarIssues";
 
 const IoTSensors = () => {
   const { user } = useAuth();
@@ -42,63 +63,11 @@ const IoTSensors = () => {
     azimuth: 180,
   });
 
-  // Mock camera videos with defects
-  const mockCameraFeeds = [
-    {
-      id: "cam-001",
-      name: "Panel Array A - Hotspot Detection",
-      defectType: "hotspot",
-      severity: "critical",
-      location: "Row 1, Panel 5",
-      videoUrl: "https://videos.pexels.com/video-files/4509544/4509544-uhd_2560_1440_25fps.mp4",
-      description: "Thermal anomaly detected - immediate inspection required",
-    },
-    {
-      id: "cam-002",
-      name: "Panel Array B - Physical Crack",
-      defectType: "crack",
-      severity: "high",
-      location: "Row 2, Panel 12",
-      videoUrl: "https://videos.pexels.com/video-files/8953563/8953563-uhd_2560_1440_25fps.mp4",
-      description: "Visible crack detected on panel surface",
-    },
-    {
-      id: "cam-003",
-      name: "Panel Array C - Soiling Analysis",
-      defectType: "soiling",
-      severity: "medium",
-      location: "Row 3, Panel 8",
-      videoUrl: "https://videos.pexels.com/video-files/2278095/2278095-uhd_2560_1440_30fps.mp4",
-      description: "Heavy dust accumulation reducing efficiency",
-    },
-    {
-      id: "cam-004",
-      name: "Panel Array D - Normal Operation",
-      defectType: "none",
-      severity: "info",
-      location: "Row 4, Panel 3",
-      videoUrl: "https://videos.pexels.com/video-files/7235122/7235122-uhd_2560_1440_30fps.mp4",
-      description: "All panels operating within normal parameters",
-    },
-    {
-      id: "cam-005",
-      name: "Panel Array E - Delamination",
-      defectType: "delamination",
-      severity: "high",
-      location: "Row 5, Panel 15",
-      videoUrl: "https://videos.pexels.com/video-files/9648835/9648835-uhd_2560_1440_30fps.mp4",
-      description: "Layer separation detected - monitor closely",
-    },
-    {
-      id: "cam-006",
-      name: "Panel Array F - Snail Trails",
-      defectType: "snail_trail",
-      severity: "low",
-      location: "Row 6, Panel 7",
-      videoUrl: "https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4",
-      description: "Silver paste corrosion visible on cells",
-    },
-  ];
+  // Solar issues and weather data
+  const [solarIssues, setSolarIssues] = useState<SolarIssue[]>([]);
+  const [weatherData, setWeatherData] = useState<SolarWeatherData | null>(null);
+  const [issuesLoading, setIssuesLoading] = useState(true);
+  const [visualLastUpdated, setVisualLastUpdated] = useState<Date>(new Date());
 
   // Fetch sensors data
   useEffect(() => {
@@ -110,12 +79,28 @@ const IoTSensors = () => {
     fetchPVWattsData();
   }, []);
 
+  // Fetch weather and issues data on mount
+  useEffect(() => {
+    fetchWeatherAndIssues();
+  }, []);
+
   // Auto-refresh PVWatts data every 10 seconds
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
       fetchPVWattsData();
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, siteParams]);
+
+  // Auto-refresh visual monitoring every 10 seconds
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      fetchWeatherAndIssues();
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
@@ -134,6 +119,31 @@ const IoTSensors = () => {
       toast.error('Failed to fetch solar data');
     } finally {
       setPvDataLoading(false);
+    }
+  };
+
+  // Fetch weather data and generate solar issues
+  const fetchWeatherAndIssues = async () => {
+    try {
+      setIssuesLoading(true);
+
+      // Fetch weather data from NASA POWER
+      const weather = await nasaPowerService.fetchWeatherData({
+        latitude: siteParams.lat,
+        longitude: siteParams.lon,
+      });
+      setWeatherData(weather);
+
+      // Generate solar issues based on weather context
+      const issues = solarIssueService.generateSiteIssues('SGX-IND-001', weather, 6);
+      setSolarIssues(issues);
+
+      setVisualLastUpdated(new Date());
+      console.log(`✅ Updated ${issues.length} solar issues with weather context`);
+    } catch (error) {
+      console.error('Error fetching weather and issues:', error);
+    } finally {
+      setIssuesLoading(false);
     }
   };
 
@@ -623,85 +633,260 @@ const IoTSensors = () => {
 
           {/* Visual Monitoring Tab */}
           <TabsContent value="visual" className="space-y-6">
-            <Card className="shadow-card border-blue-200 bg-blue-50 dark:bg-blue-950">
+            {/* Header with weather context */}
+            <Card className="shadow-card border-blue-200 bg-gradient-to-r from-blue-50 via-orange-50 to-green-50">
               <CardContent className="pt-6">
-                <div className="flex items-start space-x-3">
-                  <Camera className="h-5 w-5 text-blue-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium">Live Camera Feeds</p>
-                    <p className="text-sm text-muted-foreground">
-                      Monitoring {mockCameraFeeds.length} panel arrays with AI defect detection
-                    </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start space-x-3">
+                    <Camera className="h-6 w-6 text-blue-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">AI-Powered Visual Monitoring</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Real-time anomaly detection • NASA POWER weather data • Last updated: {visualLastUpdated.toLocaleTimeString()}
+                      </p>
+                      {weatherData && (
+                        <div className="flex items-center gap-3 mt-2 text-xs">
+                          <div className="flex items-center gap-1">
+                            <Sun className="w-3 h-3 text-orange-500" />
+                            <span>{weatherData.irradiance.toFixed(0)} W/m²</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Thermometer className="w-3 h-3 text-red-500" />
+                            <span>{weatherData.temperature.toFixed(1)}°C</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Cloud className="w-3 h-3 text-gray-500" />
+                            <span>{weatherData.cloud_cover.toFixed(0)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Wind className="w-3 h-3 text-blue-500" />
+                            <span>{weatherData.wind_speed.toFixed(1)} m/s</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Droplets className="w-3 h-3 text-blue-400" />
+                            <span>{weatherData.humidity.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={fetchWeatherAndIssues}
+                      disabled={issuesLoading}
+                      size="sm"
+                      className="bg-gradient-to-r from-blue-500 to-orange-500 text-white"
+                    >
+                      <RefreshCw className={`w-3 h-3 mr-1 ${issuesLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mockCameraFeeds.map((feed) => (
-                <Card key={feed.id} className="shadow-card overflow-hidden group">
-                  <div className="relative aspect-video bg-black">
-                    <video
-                      src={feed.videoUrl}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover opacity-80"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+            {solarIssues.length > 0 ? (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {solarIssues.map((issue) => (
+                  <Card
+                    key={issue.id}
+                    className={`shadow-lg overflow-hidden group transition-all hover:shadow-xl hover:scale-[1.02] ${
+                      issue.severity === 'critical' ? 'border-red-200 animate-pulse-slow' : ''
+                    }`}
+                  >
+                    <div className="relative aspect-video bg-black">
+                      <video
+                        src={issue.videoUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        poster={issue.posterUrl}
+                        className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-90"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-all group-hover:from-black/95" />
 
-                    {/* Status badge */}
-                    <div className="absolute top-2 left-2 flex items-center space-x-2">
-                      <Badge className="bg-red-500 animate-pulse">
-                        <span className="w-2 h-2 rounded-full bg-white mr-2" />
-                        LIVE
-                      </Badge>
-                    </div>
-
-                    {/* Severity badge */}
-                    {feed.defectType !== "none" && (
-                      <div className="absolute top-2 right-2">
-                        <Badge className={getSeverityColor(feed.severity)}>
-                          {feed.severity.toUpperCase()}
+                      {/* Status badges */}
+                      <div className="absolute top-2 left-2 flex items-center space-x-2">
+                        {issue.is_live && (
+                          <Badge className="bg-red-500 animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-white mr-2" />
+                            LIVE
+                          </Badge>
+                        )}
+                        <Badge className="bg-black/50 backdrop-blur-sm">
+                          <Video className="w-3 h-3 mr-1" />
+                          5s
                         </Badge>
                       </div>
-                    )}
 
-                    {/* Location label */}
-                    <div className="absolute bottom-2 left-2 right-2">
-                      <div className="text-white text-sm font-medium truncate drop-shadow-lg">
-                        {feed.location}
+                      {/* Severity badge */}
+                      {issue.type !== 'none' && (
+                        <div className="absolute top-2 right-2">
+                          <Badge className={getSeverityColor(issue.severity)}>
+                            {issue.severity.toUpperCase()}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Location and sensor data */}
+                      <div className="absolute bottom-0 left-0 right-0 p-3 space-y-1">
+                        <div className="text-white text-sm font-medium drop-shadow-lg">
+                          {issue.location}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-white/80">
+                          <span className="flex items-center gap-1">
+                            <Thermometer className="w-3 h-3" />
+                            {issue.sensor_data.panel_temp.toFixed(1)}°C
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Sun className="w-3 h-3" />
+                            {issue.sensor_data.irradiance.toFixed(0)} W/m²
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Zap className="w-3 h-3" />
+                            {issue.sensor_data.power_output.toFixed(0)}W
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs capitalize ${
+                            issue.type === 'hotspot'
+                              ? 'border-red-500 text-red-600'
+                              : issue.type === 'crack'
+                              ? 'border-orange-500 text-orange-600'
+                              : issue.type === 'soiling'
+                              ? 'border-yellow-500 text-yellow-600'
+                              : 'border-gray-500 text-gray-600'
+                          }`}
+                        >
+                          {issue.type.replace(/_/g, ' ')}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>{issue.dispatch_priority}</span>
+                        </div>
+                      </div>
+                      <CardTitle className="text-base leading-tight">{issue.name}</CardTitle>
+                      <CardDescription className="text-xs">{issue.description}</CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3">
+                      {/* AI Metrics */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-blue-50 to-white border">
+                          <div className="text-xs text-muted-foreground">AI Confidence</div>
+                          <div className="text-lg font-bold text-blue-600">
+                            {(issue.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-gradient-to-br from-orange-50 to-white border">
+                          <div className="text-xs text-muted-foreground">Energy Loss</div>
+                          <div className="text-lg font-bold text-orange-600">
+                            {issue.energy_loss_percent.toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-gradient-to-r from-red-50 to-orange-50 border border-red-200">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Predicted Loss</span>
+                          <span className="font-semibold text-red-600">
+                            {issue.predicted_kwh_loss.toFixed(1)} kWh/day
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-xs"
+                          onClick={() => toast.info('Sensor logs opened')}
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          View Logs
+                        </Button>
+                        {issue.severity !== 'info' && (
+                          <Button
+                            size="sm"
+                            className="flex-1 text-xs bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                            onClick={() => toast.success('Technician dispatched!')}
+                          >
+                            <Wrench className="w-3 h-3 mr-1" />
+                            Dispatch
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="shadow-card">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Camera className="w-16 h-16 text-muted-foreground/50 mb-4 animate-pulse" />
+                  <h3 className="text-xl font-semibold mb-2">Loading Visual Monitoring...</h3>
+                  <p className="text-muted-foreground text-center mb-6">
+                    Fetching AI-powered issue detection with weather context
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* AI Insights Summary */}
+            {solarIssues.length > 0 && (
+              <Card className="shadow-card border-orange-200 bg-gradient-to-r from-orange-50 to-yellow-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start space-x-3">
+                    <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium mb-2">AI Analysis Summary</p>
+                      <div className="grid grid-cols-4 gap-4 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Critical Issues:</span>
+                          <span className="font-semibold ml-1 text-red-600">
+                            {solarIssues.filter((i) => i.severity === 'critical').length}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">High Priority:</span>
+                          <span className="font-semibold ml-1 text-orange-600">
+                            {solarIssues.filter((i) => i.severity === 'high').length}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Avg Confidence:</span>
+                          <span className="font-semibold ml-1">
+                            {(
+                              (solarIssues.reduce((sum, i) => sum + i.confidence, 0) /
+                                solarIssues.length) *
+                              100
+                            ).toFixed(0)}
+                            %
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Total Energy Loss:</span>
+                          <span className="font-semibold ml-1 text-red-600">
+                            {solarIssues.reduce((sum, i) => sum + i.predicted_kwh_loss, 0).toFixed(1)} kWh/day
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        Data sources: NASA POWER API • Open-Meteo • AI-powered anomaly detection
                       </div>
                     </div>
                   </div>
-
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center space-x-2">
-                      <Camera className="w-4 h-4" />
-                      <span className="truncate">{feed.name}</span>
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      {feed.description}
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-                        <Video className="w-3 h-3" />
-                        <span>5s recording</span>
-                      </div>
-                      {feed.defectType !== "none" && (
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {feed.defectType.replace(/_/g, " ")}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
 
