@@ -7,11 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Wifi, Plus, AlertCircle, Activity, Thermometer, Zap, Battery, Camera, Video, Play } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Wifi, Plus, AlertCircle, Activity, Thermometer, Zap, Battery, Camera, Video, Sun, RefreshCw, TrendingUp } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { pvWattsService, SolarDataPoint } from "@/services/pvwatts";
 
 const IoTSensors = () => {
   const { user } = useAuth();
@@ -26,11 +27,20 @@ const IoTSensors = () => {
     endpoint_url: "",
   });
 
-  // Mock real-time data
-  const mockRealtimeData = Array.from({ length: 20 }, (_, i) => ({
-    time: `${i}:00`,
-    value: Math.floor(Math.random() * 30) + 50,
-  }));
+  // PVWatts live data state
+  const [solarData, setSolarData] = useState<SolarDataPoint[]>([]);
+  const [pvDataLoading, setPvDataLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Site parameters for PVWatts (can be made configurable later)
+  const [siteParams, setSiteParams] = useState({
+    lat: -6.2088,    // Jakarta, Indonesia
+    lon: 106.8456,
+    system_capacity: 100, // 100 kW
+    tilt: 10,
+    azimuth: 180,
+  });
 
   // Mock camera videos with defects
   const mockCameraFeeds = [
@@ -90,9 +100,42 @@ const IoTSensors = () => {
     },
   ];
 
+  // Fetch sensors data
   useEffect(() => {
     fetchSensors();
   }, [user]);
+
+  // Fetch PVWatts data on mount
+  useEffect(() => {
+    fetchPVWattsData();
+  }, []);
+
+  // Auto-refresh PVWatts data every 10 seconds
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      fetchPVWattsData();
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, siteParams]);
+
+  // Fetch live solar data from PVWatts
+  const fetchPVWattsData = async () => {
+    try {
+      setPvDataLoading(true);
+      const data = await pvWattsService.fetchSolarData(siteParams);
+      setSolarData(data);
+      setLastUpdated(new Date());
+      console.log(`✅ Updated solar data: ${data.length} hours`);
+    } catch (error) {
+      console.error('Error fetching PVWatts data:', error);
+      toast.error('Failed to fetch solar data');
+    } finally {
+      setPvDataLoading(false);
+    }
+  };
 
   const fetchSensors = async () => {
     if (!user) return;
@@ -301,80 +344,278 @@ const IoTSensors = () => {
 
           {/* Data Sensors Tab */}
           <TabsContent value="data" className="space-y-6">
-            {sensors.length > 0 ? (
-              <div className="grid lg:grid-cols-2 gap-6">
-                {sensors.map((sensor) => {
-                  const Icon = getSensorIcon(sensor.sensor_type);
-                  return (
-                    <Card key={sensor.id} className="shadow-card">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl gradient-solar flex items-center justify-center">
-                              <Icon className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                              <CardTitle className="text-lg">{sensor.sensor_name}</CardTitle>
-                              <CardDescription className="flex items-center gap-2 mt-1">
-                                <span className={`w-2 h-2 rounded-full ${sensor.status === "online" ? "bg-eco-green" : "bg-muted-foreground"}`} />
-                                <span className={getStatusColor(sensor.status)}>
-                                  {sensor.status || "offline"}
-                                </span>
-                              </CardDescription>
-                            </div>
+            {/* Live PVWatts Data Header */}
+            <Card className="shadow-card border-blue-200 bg-gradient-to-r from-blue-50 to-orange-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start space-x-3">
+                    <Sun className="h-6 w-6 text-orange-500 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Live Solar Data from PVWatts</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Hourly performance data • Auto-refreshes every 10 seconds • Last updated: {lastUpdated.toLocaleTimeString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Location: {siteParams.lat.toFixed(4)}°, {siteParams.lon.toFixed(4)}° •
+                        System: {siteParams.system_capacity} kW • {solarData.length} hours of data
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium">Auto-refresh</label>
+                      <input
+                        type="checkbox"
+                        checked={autoRefresh}
+                        onChange={(e) => setAutoRefresh(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                    </div>
+                    <Button
+                      onClick={fetchPVWattsData}
+                      disabled={pvDataLoading}
+                      size="sm"
+                      className="bg-gradient-to-r from-orange-500 to-blue-500 text-white"
+                    >
+                      <RefreshCw className={`w-3 h-3 mr-1 ${pvDataLoading ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Solar Performance Charts */}
+            {solarData.length > 0 ? (
+              <>
+                {/* AC Power Output Chart */}
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-orange-500" />
+                      AC Power Output (24-Hour)
+                    </CardTitle>
+                    <CardDescription>
+                      Live hourly AC power generation from solar panels
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={solarData}>
+                        <defs>
+                          <linearGradient id="colorAC" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis
+                          dataKey="hour"
+                          style={{ fontSize: '12px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis
+                          label={{ value: 'Power (kW)', angle: -90, position: 'insideLeft', style: { fontSize: '12px' } }}
+                          style={{ fontSize: '12px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(value: any) => [`${value.toFixed(2)} kW`, 'AC Power']}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="ac_output"
+                          stroke="#f97316"
+                          fillOpacity={1}
+                          fill="url(#colorAC)"
+                          strokeWidth={2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                    <div className="mt-4 grid grid-cols-3 gap-4">
+                      <div className="text-center p-3 rounded-lg bg-gradient-to-br from-orange-50 to-white border">
+                        <p className="text-xs text-muted-foreground">Current Output</p>
+                        <p className="text-xl font-bold text-orange-600">
+                          {solarData[solarData.length - 1]?.ac_output.toFixed(2)} kW
+                        </p>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-gradient-to-br from-blue-50 to-white border">
+                        <p className="text-xs text-muted-foreground">Peak Output</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {Math.max(...solarData.map(d => d.ac_output)).toFixed(2)} kW
+                        </p>
+                      </div>
+                      <div className="text-center p-3 rounded-lg bg-gradient-to-br from-green-50 to-white border">
+                        <p className="text-xs text-muted-foreground">Avg Output</p>
+                        <p className="text-xl font-bold text-green-600">
+                          {(solarData.reduce((sum, d) => sum + d.ac_output, 0) / solarData.length).toFixed(2)} kW
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Irradiance and Temperature Charts */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Irradiance Chart */}
+                  <Card className="shadow-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Sun className="w-5 h-5 text-yellow-500" />
+                        Solar Irradiance
+                      </CardTitle>
+                      <CardDescription>Plane of array irradiance (W/m²)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={solarData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis
+                            dataKey="hour"
+                            style={{ fontSize: '11px' }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis
+                            style={{ fontSize: '11px' }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                            }}
+                            formatter={(value: any) => [`${value.toFixed(0)} W/m²`, 'Irradiance']}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="irradiance"
+                            stroke="#eab308"
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <div className="mt-3 flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Current</span>
+                        <span className="font-semibold text-yellow-600">
+                          {solarData[solarData.length - 1]?.irradiance.toFixed(0)} W/m²
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Temperature Chart */}
+                  <Card className="shadow-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Thermometer className="w-5 h-5 text-red-500" />
+                        Panel Temperature
+                      </CardTitle>
+                      <CardDescription>Cell temperature vs ambient</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={solarData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis
+                            dataKey="hour"
+                            style={{ fontSize: '11px' }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis
+                            style={{ fontSize: '11px' }}
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "hsl(var(--card))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "8px",
+                            }}
+                            formatter={(value: any, name: string) => [
+                              `${value.toFixed(1)}°C`,
+                              name === 'cell_temp' ? 'Cell Temp' : 'Ambient Temp'
+                            ]}
+                          />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="cell_temp"
+                            stroke="#ef4444"
+                            strokeWidth={2}
+                            dot={false}
+                            name="Cell Temp"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="ambient_temp"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            dot={false}
+                            name="Ambient Temp"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <div className="mt-3 flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Cell Temp</span>
+                        <span className="font-semibold text-red-600">
+                          {solarData[solarData.length - 1]?.cell_temp.toFixed(1)}°C
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Performance Summary Card */}
+                <Card className="shadow-card border-green-200 bg-gradient-to-r from-green-50 to-blue-50">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start space-x-3">
+                      <TrendingUp className="h-5 w-5 text-green-500 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium mb-2">24-Hour Performance Summary</p>
+                        <div className="grid grid-cols-4 gap-4 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">Total Energy:</span>
+                            <span className="font-semibold ml-1">
+                              {(solarData.reduce((sum, d) => sum + d.ac_output, 0)).toFixed(1)} kWh
+                            </span>
                           </div>
-                          <div className="text-right">
-                            <div className="text-sm text-muted-foreground">{sensor.protocol.toUpperCase()}</div>
-                            <div className="text-xs text-muted-foreground">{sensor.device_id}</div>
+                          <div>
+                            <span className="text-muted-foreground">Peak Irradiance:</span>
+                            <span className="font-semibold ml-1">
+                              {Math.max(...solarData.map(d => d.irradiance)).toFixed(0)} W/m²
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Avg Cell Temp:</span>
+                            <span className="font-semibold ml-1">
+                              {(solarData.reduce((sum, d) => sum + d.cell_temp, 0) / solarData.length).toFixed(1)}°C
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Data Source:</span>
+                            <span className="font-semibold ml-1">PVWatts API</span>
                           </div>
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        <ResponsiveContainer width="100%" height={150}>
-                          <LineChart data={mockRealtimeData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="time" hide />
-                            <YAxis hide />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "8px",
-                              }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="value"
-                              stroke="hsl(var(--solar-orange))"
-                              strokeWidth={2}
-                              dot={false}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                        <div className="mt-4 flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Last reading</span>
-                          <span className="font-semibold text-foreground">
-                            {mockRealtimeData[mockRealtimeData.length - 1].value}{" "}
-                            {sensor.sensor_type === "thermal" ? "°C" : "units"}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             ) : (
               <Card className="shadow-card">
                 <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Wifi className="w-16 h-16 text-muted-foreground/50 mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">No Sensors Connected</h3>
+                  <Sun className="w-16 h-16 text-muted-foreground/50 mb-4 animate-pulse" />
+                  <h3 className="text-xl font-semibold mb-2">Loading Solar Data...</h3>
                   <p className="text-muted-foreground text-center mb-6">
-                    Add your first IoT sensor to start real-time monitoring
+                    Fetching live hourly data from PVWatts API
                   </p>
-                  <Button onClick={() => setOpen(true)} className="gradient-energy text-white">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Your First Sensor
-                  </Button>
                 </CardContent>
               </Card>
             )}
