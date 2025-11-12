@@ -632,19 +632,20 @@ const IoTSensors = () => {
       return null;
     }
 
-    const latest = displayData[displayData.length - 1];
+    // Use the actual latest hourly data for current output, not aggregated data
+    const latestHourlyData = solarData.length > 0 ? solarData[solarData.length - 1] : displayData[displayData.length - 1];
     const peakPower = Math.max(...displayData.map((d) => d.ac_output));
     const avgPower = displayData.reduce((sum, d) => sum + d.ac_output, 0) / displayData.length;
     const energyMultiplier = viewMode === 'hourly' ? 1 : 24;
     const totalEnergyKwh = displayData.reduce((sum, d) => sum + d.ac_output * energyMultiplier, 0);
 
     return {
-      latestPower: latest.ac_output,
+      latestPower: latestHourlyData.ac_output,
       peakPower,
       avgPower,
       totalEnergyKwh,
     };
-  }, [displayData, viewMode]);
+  }, [displayData, viewMode, solarData]);
 
   const irradianceStats = useMemo(() => {
     if (!displayData.length) {
