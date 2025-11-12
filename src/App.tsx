@@ -12,13 +12,12 @@ import Dashboard from "./pages/Dashboard";
 import AddSite from "./pages/AddSite";
 import WeatherIntelligence from "./pages/Evaluate";
 import IoTSensors from "./pages/IoTSensors";
-import Monitor from "./pages/Monitor";
+import RealTimeMonitor from "./pages/RealTimeMonitor";
 import TestingDiagnostics from "./pages/TestingDiagnostics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import RealTimeMonitor from "./pages/RealTimeMonitor";
-import VisualMonitoring from "./pages/VisualMonitoring";
-import AIAnalysis from "./pages/AIAnalysis";
+import Organizations from "./pages/Organizations";
+import PanelAnalysis from "./pages/PanelAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -76,7 +75,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Navigation />
-                  <Monitor />
+                  <RealTimeMonitor />
                 </ProtectedRoute>
               }
             />
@@ -99,29 +98,20 @@ const App = () => (
               }
             />
             <Route
-              path="/realtime"
+              path="/organizations"
               element={
                 <ProtectedRoute>
                   <Navigation />
-                  <RealTimeMonitor />
+                  <Organizations />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/visual-monitoring"
+              path="/panel-analysis"
               element={
                 <ProtectedRoute>
                   <Navigation />
-                  <VisualMonitoring />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/ai-analysis"
-              element={
-                <ProtectedRoute>
-                  <Navigation />
-                  <AIAnalysis />
+                  <PanelAnalysis />
                 </ProtectedRoute>
               }
             />
