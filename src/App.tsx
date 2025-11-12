@@ -12,7 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import AddSite from "./pages/AddSite";
 import WeatherIntelligence from "./pages/Evaluate";
 import IoTSensors from "./pages/IoTSensors";
-import Monitor from "./pages/Monitor";
+import RealTimeMonitor from "./pages/RealTimeMonitor";
 import TestingDiagnostics from "./pages/TestingDiagnostics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -75,7 +75,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Navigation />
-                  <Monitor />
+                  <RealTimeMonitor />
                 </ProtectedRoute>
               }
             />
