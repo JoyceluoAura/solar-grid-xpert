@@ -152,86 +152,42 @@ class OpenMeteoService {
     try {
       console.log('🔄 Fetching fresh data from Open-Meteo APIs...');
 
-      // Get date range (last 24 hours)
+      const now = new Date();
       const endDate = new Date();
       const startDate = new Date(endDate);
-      startDate.setHours(startDate.getHours() - 24);
+      startDate.setHours(startDate.getHours() - 23); // Last 24 hours including current
 
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
+      const currentHour = now.getHours();
 
-      // Try satellite API first (may not be available for all regions)
-      const radiationUrl = `${this.baseUrl}?latitude=${params.lat}&longitude=${params.lon}&hourly=shortwave_radiation,direct_radiation,diffuse_radiation&forecast_days=1&past_days=1&timezone=auto`;
+      // Always try to fetch both archive (yesterday's complete data) and forecast (today's data including current hour)
+      const yesterdayStr = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       
-      // Fetch weather data (for temperature)
-      const weatherUrl = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}&hourly=temperature_2m&forecast_days=1&past_days=1&timezone=auto`;
+      // Fetch archive data for yesterday and forecast data for today (includes current hour)
+      const archiveUrl = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}&start_date=${yesterdayStr}&end_date=${yesterdayStr}&hourly=shortwave_radiation&timezone=auto`;
+      const forecastUrl = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}&hourly=shortwave_radiation,temperature_2m&forecast_days=1&timezone=auto`;
 
-      const [radiationResponse, weatherResponse] = await Promise.all([
-        fetch(radiationUrl).catch(() => null),
-        fetch(weatherUrl)
+      const [archiveResponse, forecastResponse] = await Promise.all([
+        fetch(archiveUrl).catch(() => null),
+        fetch(forecastUrl)
       ]);
 
       let hourlyData: SolarDataPoint[] = [];
 
-      // If satellite API failed, use archive API for historical data
-      if (!radiationResponse || !radiationResponse.ok) {
-        console.log('⚠️ Satellite API unavailable, using archive API...');
+      // Get yesterday's data from archive
+      if (archiveResponse && archiveResponse.ok) {
+        const archiveData = await archiveResponse.json();
+        const dataLength = archiveData.hourly?.time?.length || 0;
         
-        const archiveUrl = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}&start_date=${startDateStr}&end_date=${endDateStr}&hourly=shortwave_radiation&timezone=auto`;
-        const archiveResponse = await fetch(archiveUrl);
-        
-        if (archiveResponse.ok) {
-          const archiveData = await archiveResponse.json();
-          const weatherData: OpenMeteoResponse = weatherResponse.ok ? await weatherResponse.json() : null;
-          
-          // Process hourly data from archive
-          const dataLength = archiveData.hourly?.time?.length || 0;
-          const startIndex = Math.max(0, dataLength - 24);
-          
-          for (let i = startIndex; i < dataLength; i++) {
-            const timestamp = archiveData.hourly.time[i];
-            const date = new Date(timestamp);
-            const hourMatch = timestamp.match(/T(\d{2}):/);
-            const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
-            
-            const irradiance = archiveData.hourly.shortwave_radiation[i] || 0;
-            const ambientTemp = weatherData?.hourly.temperature_2m?.[i] || 25;
-            const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
-            
-            const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
-            const acPower = this.calculateACPower(dcPower);
-            
-            hourlyData.push({
-              timestamp: date.toISOString(),
-              hour: localHour,
-              ac_output: acPower,
-              dc_output: dcPower,
-              irradiance: irradiance,
-              ambient_temp: ambientTemp,
-              cell_temp: cellTemp,
-            });
-          }
-          
-          console.log(`✅ Fetched ${hourlyData.length} hours from Archive API`);
-        } else {
-          throw new Error('Both satellite and archive APIs unavailable');
-        }
-      } else {
-        // Process satellite API data
-        const radiationData: OpenMeteoResponse = await radiationResponse.json();
-        const weatherData: OpenMeteoResponse = weatherResponse.ok ? await weatherResponse.json() : null;
-        
-        const dataLength = radiationData.hourly.time.length;
-        const startIndex = Math.max(0, dataLength - 24);
-        
-        for (let i = startIndex; i < dataLength; i++) {
-          const timestamp = radiationData.hourly.time[i];
+        for (let i = 0; i < dataLength; i++) {
+          const timestamp = archiveData.hourly.time[i];
           const date = new Date(timestamp);
           const hourMatch = timestamp.match(/T(\d{2}):/);
           const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
           
-          const irradiance = radiationData.hourly.shortwave_radiation[i] || 0;
-          const ambientTemp = weatherData?.hourly.temperature_2m?.[i] || 25;
+          const irradiance = archiveData.hourly.shortwave_radiation?.[i] || 0;
+          const ambientTemp = 25; // Default temp
           const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
           
           const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
@@ -247,9 +203,47 @@ class OpenMeteoService {
             cell_temp: cellTemp,
           });
         }
-        
-        console.log(`✅ Fetched ${hourlyData.length} hours from Satellite API`);
       }
+
+      // Get today's data including current hour from forecast API
+      if (forecastResponse.ok) {
+        const forecastData: OpenMeteoResponse = await forecastResponse.json();
+        const dataLength = forecastData.hourly?.time?.length || 0;
+        
+        // Only process up to current hour for today
+        for (let i = 0; i <= currentHour && i < dataLength; i++) {
+          const timestamp = forecastData.hourly.time[i];
+          const date = new Date(timestamp);
+          
+          // Only include today's data
+          if (date.toISOString().split('T')[0] !== endDateStr) continue;
+          
+          const hourMatch = timestamp.match(/T(\d{2}):/);
+          const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
+          
+          const irradiance = forecastData.hourly.shortwave_radiation?.[i] || 0;
+          const ambientTemp = forecastData.hourly.temperature_2m?.[i] || 25;
+          const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
+          
+          const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
+          const acPower = this.calculateACPower(dcPower);
+          
+          hourlyData.push({
+            timestamp: date.toISOString(),
+            hour: localHour,
+            ac_output: acPower,
+            dc_output: dcPower,
+            irradiance: irradiance,
+            ambient_temp: ambientTemp,
+            cell_temp: cellTemp,
+          });
+        }
+      }
+
+      // Keep only last 24 hours
+      hourlyData = hourlyData.slice(-24);
+      
+      console.log(`✅ Fetched ${hourlyData.length} hours (${hourlyData.length > 0 ? hourlyData[0].hour : '?'} to ${hourlyData.length > 0 ? hourlyData[hourlyData.length - 1].hour : '?'})`);
 
       // Cache the data
       this.cache.set(cacheKey, {
