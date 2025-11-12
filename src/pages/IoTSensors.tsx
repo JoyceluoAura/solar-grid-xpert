@@ -632,29 +632,38 @@ const IoTSensors = () => {
       return null;
     }
 
-    // Always use the latest real-time hourly data for "Current Output"
-    // regardless of which view mode is active
+    // Find the most recent data with actual solar generation (irradiance > 10)
     let latestPower = 0;
+    let latestLabel = '';
+    let isNighttime = false;
+    
     if (solarData.length > 0) {
-      latestPower = solarData[solarData.length - 1].ac_output;
+      const latestData = solarData[solarData.length - 1];
+      
+      // Check if current time is nighttime (irradiance = 0)
+      if (latestData.irradiance === 0) {
+        isNighttime = true;
+        // Find most recent daytime reading
+        for (let i = solarData.length - 1; i >= 0; i--) {
+          if (solarData[i].irradiance > 10) {
+            latestPower = solarData[i].ac_output;
+            latestLabel = solarData[i].hour;
+            break;
+          }
+        }
+      } else {
+        latestPower = latestData.ac_output;
+        latestLabel = latestData.hour;
+      }
     } else if (displayData.length > 0) {
-      // Fallback to displayData, but use the raw value not divided
+      // Fallback to displayData
       const latestDisplay = displayData[displayData.length - 1];
       latestPower = latestDisplay.ac_output;
-      // If we're in aggregated view (weekly/monthly/yearly), multiply back
+      // If we're in aggregated view, multiply back
       if (viewMode !== 'hourly' && viewMode !== 'forecast') {
-        latestPower = latestPower * 24; // Reverse the averaging
+        latestPower = latestPower * 24;
       }
     }
-    
-    console.log('📊 Current Output Debug:', {
-      viewMode,
-      solarDataLength: solarData.length,
-      displayDataLength: displayData.length,
-      latestPower,
-      latestSolarData: solarData.length > 0 ? solarData[solarData.length - 1] : null,
-      latestDisplayData: displayData[displayData.length - 1],
-    });
 
     const peakPower = Math.max(...displayData.map((d) => d.ac_output));
     const avgPower = displayData.reduce((sum, d) => sum + d.ac_output, 0) / displayData.length;
@@ -663,6 +672,8 @@ const IoTSensors = () => {
 
     return {
       latestPower,
+      latestLabel,
+      isNighttime,
       peakPower,
       avgPower,
       totalEnergyKwh,
@@ -1448,10 +1459,17 @@ const IoTSensors = () => {
                     </ResponsiveContainer>
                     <div className="mt-4 grid grid-cols-3 gap-4">
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-orange-50 to-white border">
-                        <p className="text-xs text-muted-foreground">Current Output</p>
+                        <p className="text-xs text-muted-foreground">
+                          {aggregateStats?.isNighttime ? 'Last Daytime Output' : 'Current Output'}
+                        </p>
                         <p className="text-xl font-bold text-orange-600">
                           {aggregateStats ? aggregateStats.latestPower.toFixed(2) : '--'} kW
                         </p>
+                        {aggregateStats?.isNighttime && aggregateStats?.latestLabel && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            at {aggregateStats.latestLabel} WIB
+                          </p>
+                        )}
                       </div>
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-blue-50 to-white border">
                         <p className="text-xs text-muted-foreground">Peak Output</p>
