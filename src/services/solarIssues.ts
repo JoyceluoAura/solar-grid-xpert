@@ -76,11 +76,12 @@ class SolarIssueService {
   private static instance: SolarIssueService;
 
   // Issue type to video mapping with realistic URLs
+  // Using solar panel specific videos from Pexels
   private issueMapping: Record<IssueType, IssueMapping> = {
     hotspot: {
       type: 'hotspot',
-      videoUrl: 'https://videos.pexels.com/video-files/4509544/4509544-uhd_2560_1440_25fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/7989442/7989442-uhd_2560_1440_24fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'Thermal anomaly detected - immediate inspection required',
       typical_severity: 'critical',
       energy_loss_range: [15, 35],
@@ -94,8 +95,8 @@ class SolarIssueService {
     },
     crack: {
       type: 'crack',
-      videoUrl: 'https://videos.pexels.com/video-files/8953563/8953563-uhd_2560_1440_25fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/3255275/3255275-uhd_2560_1440_25fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/371900/pexels-photo-371900.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'Physical crack detected on panel surface',
       typical_severity: 'high',
       energy_loss_range: [10, 25],
@@ -109,8 +110,8 @@ class SolarIssueService {
     },
     soiling: {
       type: 'soiling',
-      videoUrl: 'https://videos.pexels.com/video-files/2278095/2278095-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1497440001374-f26997328c1b?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/2620043/2620043-uhd_2560_1440_30fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'Heavy dust accumulation reducing efficiency',
       typical_severity: 'medium',
       energy_loss_range: [5, 15],
@@ -124,8 +125,8 @@ class SolarIssueService {
     },
     delamination: {
       type: 'delamination',
-      videoUrl: 'https://videos.pexels.com/video-files/9648835/9648835-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1559302504-64aae6ca6b6d?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/7989442/7989442-uhd_2560_1440_24fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/371900/pexels-photo-371900.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'Layer separation detected - monitor closely',
       typical_severity: 'high',
       energy_loss_range: [12, 30],
@@ -139,8 +140,8 @@ class SolarIssueService {
     },
     shadow: {
       type: 'shadow',
-      videoUrl: 'https://videos.pexels.com/video-files/7235122/7235122-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/2611250/2611250-uhd_2560_1440_30fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'Shading detected affecting output',
       typical_severity: 'medium',
       energy_loss_range: [20, 50],
@@ -154,8 +155,8 @@ class SolarIssueService {
     },
     snow: {
       type: 'snow',
-      videoUrl: 'https://videos.pexels.com/video-files/3129671/3129671-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1509390144881-c8fc18f5a628?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/3044135/3044135-uhd_2560_1440_25fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/371900/pexels-photo-371900.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'Snow coverage affecting generation',
       typical_severity: 'low',
       energy_loss_range: [80, 100],
@@ -169,8 +170,8 @@ class SolarIssueService {
     },
     none: {
       type: 'none',
-      videoUrl: 'https://videos.pexels.com/video-files/7235122/7235122-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=400&h=300&fit=crop',
+      videoUrl: 'https://videos.pexels.com/video-files/2611250/2611250-uhd_2560_1440_30fps.mp4',
+      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
       description: 'All panels operating within normal parameters',
       typical_severity: 'info',
       energy_loss_range: [0, 2],

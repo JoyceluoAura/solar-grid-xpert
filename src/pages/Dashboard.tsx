@@ -225,7 +225,7 @@ const Dashboard = () => {
                   <div
                     key={site.id}
                     className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-card transition-all cursor-pointer"
-                    onClick={() => navigate("/monitor")}
+                    onClick={() => navigate("/sensors")}
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-lg gradient-solar flex items-center justify-center flex-shrink-0">
