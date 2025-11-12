@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { solarIssueService, SolarIssue, IssueType } from "@/services/solarIssues";
 import { nasaPowerService } from "@/services/nasaPower";
+import { formatJakartaDateTime } from "@/lib/utils";
 import { getFallbackSensors } from "@/lib/mockSensors";
 
 interface Sensor {
@@ -300,7 +301,7 @@ const VisualMonitoring = () => {
                       </div>
 
                       <p className="text-xs text-muted-foreground pt-1">
-                        Detected: {new Date(issue.detected_at).toLocaleString()}
+                        Detected: {formatJakartaDateTime(issue.detected_at)}
                       </p>
                     </CardContent>
                   </Card>

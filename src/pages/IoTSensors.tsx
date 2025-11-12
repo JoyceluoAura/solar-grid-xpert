@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { formatJakartaTime } from "@/lib/utils";
 import {
   Wifi,
   Plus,
@@ -675,7 +676,7 @@ const IoTSensors = () => {
 
   const batteryChartData = useMemo(() =>
     batteryMetrics.slice(-24).map((metric) => ({
-      label: new Date(metric.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      label: formatJakartaTime(metric.timestamp),
       stateOfCharge: metric.stateOfCharge,
       netPower: Number((metric.chargePowerKw - metric.dischargePowerKw).toFixed(2)),
       temperatureC: metric.temperatureC,
@@ -685,7 +686,7 @@ const IoTSensors = () => {
 
   const inverterChartData = useMemo(() =>
     inverterMetrics.slice(-24).map((metric) => ({
-      label: new Date(metric.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      label: formatJakartaTime(metric.timestamp),
       efficiencyPct: metric.efficiencyPct,
       acOutputKw: metric.acOutputKw,
       clippingPct: metric.clippingPct,
@@ -1036,7 +1037,7 @@ const IoTSensors = () => {
                     <div>
                       <p className="text-sm font-medium">Live Solar Data - Singapore/Jakarta Region</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Himawari satellite data • Auto-refreshes every 10 seconds • Last updated: {lastUpdated.toLocaleTimeString()}
+                        Himawari satellite data • Auto-refreshes every 10 seconds • Last updated: {formatJakartaTime(lastUpdated)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Location: Jakarta, Indonesia ({siteParams.lat.toFixed(4)}°, {siteParams.lon.toFixed(4)}°) •

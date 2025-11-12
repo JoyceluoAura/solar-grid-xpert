@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { formatIDR } from "@/lib/utils";
+import { formatIDR, formatJakartaTime, formatJakartaDateTime } from "@/lib/utils";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -1059,9 +1059,9 @@ const AIAnalysis = () => {
                             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                               <p className="text-xs text-muted-foreground mb-1">Detection Time</p>
                               <p className="font-semibold text-blue-700">
-                                {new Date(issue.detected_at).toLocaleTimeString()}
+                                {formatJakartaTime(issue.detected_at)}
                               </p>
-                              <p className="text-xs text-blue-600">{new Date(issue.detected_at).toLocaleDateString()}</p>
+                              <p className="text-xs text-blue-600">{new Date(issue.detected_at).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' })}</p>
                             </div>
                             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
                               <p className="text-xs text-muted-foreground mb-1">Priority</p>
@@ -1223,7 +1223,7 @@ const AIAnalysis = () => {
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-4 h-4" />
-                            {new Date(insight.ts).toLocaleDateString()}
+                            {new Date(insight.ts).toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' })}
                           </span>
                         </div>
                       </div>
@@ -1452,8 +1452,8 @@ const AIAnalysis = () => {
                           <div>
                             <p className="font-medium capitalize">{anomaly.type.replace("_", " ")}</p>
                             <p className="text-sm text-muted-foreground">
-                              {new Date(anomaly.start).toLocaleString()} -{" "}
-                              {new Date(anomaly.end).toLocaleString()}
+                              {formatJakartaDateTime(anomaly.start)} -{" "}
+                              {formatJakartaDateTime(anomaly.end)}
                             </p>
                           </div>
                         </div>
