@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import KPICard from "@/components/KPICard";
-import { Zap, Battery, TrendingUp, AlertTriangle, MapPin, Plus, XCircle, Camera, ChevronRight } from "lucide-react";
+import { Zap, Battery, TrendingUp, AlertTriangle, MapPin, Plus, XCircle, Camera, ChevronRight, Activity, Thermometer } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,10 +32,20 @@ interface ActionItem {
   created_at: string;
 }
 
+interface Sensor {
+  id: string;
+  sensor_name: string;
+  sensor_type: string;
+  protocol: string;
+  status: string;
+  device_id: string;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sites, setSites] = useState<Site[]>([]);
+  const [sensors, setSensors] = useState<Sensor[]>([]);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,6 +58,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchSites();
+    fetchSensors();
     fetchActionItems();
   }, [user]);
 
@@ -69,6 +80,24 @@ const Dashboard = () => {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSensors = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("sensors")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setSensors(data || []);
+    } catch (error: any) {
+      console.error("Failed to load sensors:", error);
     }
   };
 
@@ -114,6 +143,38 @@ const Dashboard = () => {
       : "bg-orange-500 text-white";
   };
 
+  const getSensorIcon = (type: string) => {
+    switch (type) {
+      case "thermal":
+        return Thermometer;
+      case "inverter":
+      case "voltage":
+        return Zap;
+      case "battery":
+        return Battery;
+      case "camera":
+        return Camera;
+      default:
+        return Activity;
+    }
+  };
+
+  const getSensorTypeColor = (type: string) => {
+    switch (type) {
+      case "battery":
+        return "text-green-600 bg-green-50 border-green-200";
+      case "inverter":
+      case "voltage":
+        return "text-blue-600 bg-blue-50 border-blue-200";
+      case "thermal":
+        return "text-orange-600 bg-orange-50 border-orange-200";
+      case "camera":
+        return "text-purple-600 bg-purple-50 border-purple-200";
+      default:
+        return "text-gray-600 bg-gray-50 border-gray-200";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -129,6 +190,54 @@ const Dashboard = () => {
             Add Site
           </Button>
         </div>
+
+        {/* Connected Sensors Summary */}
+        {sensors.length > 0 && (
+          <Card className="shadow-card border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-600" />
+                Connected Sensors ({sensors.length})
+              </CardTitle>
+              <CardDescription>IoT devices monitoring your solar installations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                {sensors.map((sensor) => {
+                  const Icon = getSensorIcon(sensor.sensor_type);
+                  const colorClass = getSensorTypeColor(sensor.sensor_type);
+                  return (
+                    <div
+                      key={sensor.id}
+                      className={`p-3 rounded-lg border ${colorClass} hover:shadow-md transition-all cursor-pointer`}
+                      onClick={() => navigate("/sensors")}
+                    >
+                      <div className="flex flex-col items-center text-center gap-2">
+                        <Icon className="w-6 h-6" />
+                        <div>
+                          <p className="text-xs font-semibold truncate">{sensor.sensor_name}</p>
+                          <p className="text-xs capitalize opacity-75">
+                            {sensor.sensor_type.replace('_', ' ')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 text-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/sensors")}
+                >
+                  View All Sensors
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* High Severity Action Items */}
         {actionItems.length > 0 && (
