@@ -41,6 +41,15 @@ export interface SolarDataPoint {
   cell_temp: number;      // Cell temperature (°C)
 }
 
+export interface DailySolarDataPoint {
+  date: string;
+  ac_output: number;      // Daily AC energy (kWh)
+  dc_output: number;      // Daily DC energy (kWh)
+  irradiance: number;     // Daily irradiance sum (Wh/m²)
+  ambient_temp: number;   // Mean ambient temperature (°C)
+  cell_temp: number;      // Estimated mean cell temperature (°C)
+}
+
 interface CachedData {
   data: SolarDataPoint[];
   timestamp: number;
@@ -53,6 +62,7 @@ class OpenMeteoService {
   private cacheDuration = 10000; // 10 seconds
   private baseUrl = 'https://satellite-api.open-meteo.com/v1/forecast';
   private weatherUrl = 'https://api.open-meteo.com/v1/forecast';
+  private archiveUrl = 'https://archive-api.open-meteo.com/v1/archive';
 
   private constructor() {}
 
@@ -275,6 +285,60 @@ class OpenMeteoService {
       size: this.cache.size,
       keys: Array.from(this.cache.keys()),
     };
+  }
+
+  /**
+   * Fetch daily aggregated solar data for extended historical analysis
+   */
+  async fetchHistoricalDailyData(
+    params: OpenMeteoParams,
+    startDate: string,
+    endDate: string
+  ): Promise<DailySolarDataPoint[]> {
+    const url = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}` +
+      `&start_date=${startDate}&end_date=${endDate}` +
+      `&daily=shortwave_radiation_sum,direct_radiation_sum,temperature_2m_mean,temperature_2m_max` +
+      `&timezone=auto`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Open-Meteo archive API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    const days: DailySolarDataPoint[] = [];
+    const shortwave: number[] = data.daily?.shortwave_radiation_sum || [];
+    const tempMean: number[] = data.daily?.temperature_2m_mean || [];
+    const tempMax: number[] = data.daily?.temperature_2m_max || [];
+
+    const totalCapacity = params.system_capacity;
+
+    for (let i = 0; i < (data.daily?.time?.length || 0); i++) {
+      const date = data.daily.time[i];
+      const irradianceWh = shortwave[i] ?? 0;
+      const meanTemp = tempMean[i] ?? 26;
+      const maxTemp = tempMax[i] ?? (meanTemp + 4);
+
+      const irradianceKwhM2 = irradianceWh / 1000;
+
+      const cellTemp = this.calculateCellTemperature(meanTemp, irradianceKwhM2 * 1000 / 24);
+
+      const dcEnergyKwh = Math.max(0, totalCapacity * irradianceKwhM2 * 0.24);
+      const acEnergyKwh = this.calculateACPower(dcEnergyKwh);
+
+      days.push({
+        date,
+        ac_output: Number(acEnergyKwh.toFixed(2)),
+        dc_output: Number(dcEnergyKwh.toFixed(2)),
+        irradiance: Math.round(irradianceWh),
+        ambient_temp: Number(meanTemp.toFixed(1)),
+        cell_temp: Number(((cellTemp + maxTemp) / 2).toFixed(1)),
+      });
+    }
+
+    return days;
   }
 }
 

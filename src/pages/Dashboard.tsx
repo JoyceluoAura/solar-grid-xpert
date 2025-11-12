@@ -145,7 +145,7 @@ const Dashboard = () => {
 
   const getSensorIcon = (type: string) => {
     switch (type) {
-      case "thermal":
+      case "temperature":
         return Thermometer;
       case "inverter":
       case "voltage":
@@ -166,7 +166,7 @@ const Dashboard = () => {
       case "inverter":
       case "voltage":
         return "text-blue-600 bg-blue-50 border-blue-200";
-      case "thermal":
+      case "temperature":
         return "text-orange-600 bg-orange-50 border-orange-200";
       case "camera":
         return "text-purple-600 bg-purple-50 border-purple-200";

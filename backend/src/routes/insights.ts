@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
+import { parseSiteParams, fetchSiteTelemetry, TelemetryPoint, generateMockTelemetry } from './utils/telemetry';
 
 const router = express.Router();
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
@@ -148,28 +149,22 @@ const generateInsightCards = async (
 router.get('/insights', async (req: Request, res: Response) => {
   try {
     const siteId = req.query.site_id as string || 'default';
+    const { latitude, longitude, systemCapacityKw } = parseSiteParams(req);
 
     console.log(`[Insights] Generating insights for site: ${siteId}`);
 
     // 1. Fetch recent telemetry data (last 14 days)
-    const telemetryData = [];
-    const now = new Date();
-
-    for (let i = 14 * 24; i >= 0; i--) {
-      const ts = new Date(now.getTime() - i * 60 * 60 * 1000);
-      const hour = ts.getHours();
-
-      const solarFactor = Math.max(0, Math.sin(((hour - 6) / 12) * Math.PI));
-      const ghi = 1000 * solarFactor * (0.9 + Math.random() * 0.2);
-      const ac_kw = 100 * solarFactor * (0.85 + Math.random() * 0.3);
-
-      telemetryData.push({
-        ts: ts.toISOString(),
-        ghi_wm2: Math.max(0, ghi),
-        air_temp_c: 27 + solarFactor * 8 + (Math.random() - 0.5) * 4,
-        wind_ms: 1 + Math.random() * 3,
-        ac_kw: Math.max(0, ac_kw)
+    let telemetryData: TelemetryPoint[];
+    try {
+      telemetryData = await fetchSiteTelemetry({
+        latitude,
+        longitude,
+        systemCapacityKw,
+        hours: 14 * 24,
       });
+    } catch (error: any) {
+      console.error(`[Insights] Telemetry fetch failed: ${error.message}`);
+      telemetryData = generateMockTelemetry(systemCapacityKw, 14);
     }
 
     // 2. Generate residuals

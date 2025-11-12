@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Settings as SettingsIcon, Key, Save, Wifi } from "lucide-react";
+import { Settings as SettingsIcon, Key, Save, Wifi, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 const Settings = () => {
@@ -271,6 +271,22 @@ const Settings = () => {
                 <span className="text-sm font-semibold text-foreground">October 2025</span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Data Retention */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-solar-orange" />
+              Historical Data Retention
+            </CardTitle>
+            <CardDescription>Telemetry retention horizon for analytics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Sensor telemetry and AI analysis now leverage the Open-Meteo archive with a retention window of <span className="font-semibold text-foreground">24 months</span>. No additional configuration is required—weekly, monthly, and yearly visualizations in the IoT Sensors page automatically use the extended history.
+            </p>
           </CardContent>
         </Card>
       </div>

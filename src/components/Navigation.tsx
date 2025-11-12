@@ -18,8 +18,8 @@ const Navigation = () => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
     { path: "/sensors", label: "Sensors", icon: Activity },
+    { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
     { path: "/settings", label: "Settings", icon: Settings },
   ];
 

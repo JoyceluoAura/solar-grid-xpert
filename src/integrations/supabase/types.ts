@@ -242,7 +242,7 @@ export type Database = {
       sensor_protocol: "mqtt" | "modbus" | "http_api" | "websocket"
       sensor_status: "online" | "offline" | "error"
       sensor_type:
-        | "thermal"
+        | "temperature"
         | "inverter"
         | "voltage"
         | "irradiance"
@@ -380,7 +380,7 @@ export const Constants = {
       sensor_protocol: ["mqtt", "modbus", "http_api", "websocket"],
       sensor_status: ["online", "offline", "error"],
       sensor_type: [
-        "thermal",
+        "temperature",
         "inverter",
         "voltage",
         "irradiance",
