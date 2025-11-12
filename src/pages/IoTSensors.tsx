@@ -168,7 +168,7 @@ const IoTSensors = () => {
 
   useEffect(() => {
     fetchHistoricalSolarData();
-  }, []);
+  }, [viewMode]); // Refetch when view mode changes
 
   // Fetch weather and issues data on mount
   useEffect(() => {
@@ -225,7 +225,17 @@ const IoTSensors = () => {
       setHistoricalLoading(true);
       const endDate = new Date();
       const startDate = new Date(endDate);
-      startDate.setFullYear(startDate.getFullYear() - 2);
+      
+      // Adjust date range based on view mode
+      if (viewMode === 'weekly') {
+        startDate.setDate(endDate.getDate() - 7);
+      } else if (viewMode === 'monthly') {
+        startDate.setMonth(endDate.getMonth() - 1);
+      } else if (viewMode === 'yearly') {
+        startDate.setFullYear(endDate.getFullYear() - 1);
+      } else {
+        startDate.setFullYear(startDate.getFullYear() - 2); // Default 2 years for comprehensive data
+      }
 
       const [historical, forecast] = await Promise.all([
         openMeteoService.fetchHistoricalDailyData(
@@ -502,44 +512,62 @@ const IoTSensors = () => {
       );
     }
 
-    // Yearly view - aggregate by month for the last 12 months
-    const monthlyBuckets = new Map<string, {
-      ac: number;
-      dc: number;
-      irr: number;
-      ambient: number;
-      cell: number;
-      count: number;
-    }>();
+    if (viewMode === 'yearly') {
+      // Yearly view - aggregate by month for the last 12 months
+      const monthlyBuckets = new Map<string, {
+        ac: number;
+        dc: number;
+        irr: number;
+        ambient: number;
+        cell: number;
+        count: number;
+      }>();
 
-    orderedHistorical.forEach((day) => {
-      const monthKey = day.date.slice(0, 7); // YYYY-MM
-      if (!monthlyBuckets.has(monthKey)) {
-        monthlyBuckets.set(monthKey, { ac: 0, dc: 0, irr: 0, ambient: 0, cell: 0, count: 0 });
-      }
-      const bucket = monthlyBuckets.get(monthKey)!;
-      bucket.ac += day.ac_output;
-      bucket.dc += day.dc_output;
-      bucket.irr += day.irradiance;
-      bucket.ambient += day.ambient_temp;
-      bucket.cell += day.cell_temp;
-      bucket.count += 1;
-    });
+      orderedHistorical.forEach((day) => {
+        const monthKey = day.date.slice(0, 7); // YYYY-MM
+        if (!monthlyBuckets.has(monthKey)) {
+          monthlyBuckets.set(monthKey, { ac: 0, dc: 0, irr: 0, ambient: 0, cell: 0, count: 0 });
+        }
+        const bucket = monthlyBuckets.get(monthKey)!;
+        bucket.ac += day.ac_output;
+        bucket.dc += day.dc_output;
+        bucket.irr += day.irradiance;
+        bucket.ambient += day.ambient_temp;
+        bucket.cell += day.cell_temp;
+        bucket.count += 1;
+      });
 
-    const monthlyPoints = Array.from(monthlyBuckets.entries())
-      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
-      .slice(-12);
+      const monthlyPoints = Array.from(monthlyBuckets.entries())
+        .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+        .slice(-12);
 
-    return monthlyPoints.map(([monthKey, bucket]) =>
-      buildPoint(
-        new Date(`${monthKey}-01`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
-        (bucket.ac / bucket.count) / 24,
-        (bucket.dc / bucket.count) / 24,
-        (bucket.irr / bucket.count) / 24,
-        bucket.ambient / bucket.count,
-        bucket.cell / bucket.count
-      )
-    );
+      return monthlyPoints.map(([monthKey, bucket]) =>
+        buildPoint(
+          new Date(`${monthKey}-01`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+          (bucket.ac / bucket.count) / 24,
+          (bucket.dc / bucket.count) / 24,
+          (bucket.irr / bucket.count) / 24,
+          bucket.ambient / bucket.count,
+          bucket.cell / bucket.count
+        )
+      );
+    }
+
+    // Forecast view
+    if (viewMode === 'forecast' && forecastData.length > 0) {
+      return forecastData.map((day) =>
+        buildPoint(
+          new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          day.ac_output / 24,
+          day.dc_output / 24,
+          day.irradiance / 24,
+          day.ambient_temp,
+          day.cell_temp
+        )
+      );
+    }
+
+    return [];
   }, [solarData, historicalSolarData, forecastData, viewMode, dayNightFilter, selectedDate]);
 
   const chartUnits = useMemo(() => ({
@@ -1129,7 +1157,7 @@ const IoTSensors = () => {
                         variant={viewMode === 'forecast' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setViewMode('forecast')}
-                        className="rounded-r-none text-xs px-3"
+                        className="rounded-r-md text-xs px-3"
                       >
                         Forecast
                       </Button>
