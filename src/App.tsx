@@ -10,7 +10,6 @@ import Welcome from "./pages/Welcome";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import AddSite from "./pages/AddSite";
-import WeatherIntelligence from "./pages/Evaluate";
 import IoTSensors from "./pages/IoTSensors";
 import TestingDiagnostics from "./pages/TestingDiagnostics";
 import Settings from "./pages/Settings";
@@ -47,15 +46,6 @@ const App = () => (
                 <ProtectedRoute>
                   <Navigation />
                   <AddSite />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/weather"
-              element={
-                <ProtectedRoute>
-                  <Navigation />
-                  <WeatherIntelligence />
                 </ProtectedRoute>
               }
             />

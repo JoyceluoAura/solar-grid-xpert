@@ -724,11 +724,45 @@ const IoTSensors = () => {
                     </CardHeader>
 
                     <CardContent className="space-y-3">
+                      {/* Sensor Error Warning */}
+                      {issue.has_sensor_error && (
+                        <div className="p-3 rounded-lg bg-red-100 border-2 border-red-500">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-red-700">Sensor Error Detected</p>
+                              <p className="text-xs text-red-600 mt-1">{issue.error_message}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Low Confidence Warning */}
+                      {issue.needs_recheck && !issue.has_sensor_error && (
+                        <div className="p-3 rounded-lg bg-yellow-100 border-2 border-yellow-500">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-yellow-700">Re-check Feed Required</p>
+                              <p className="text-xs text-yellow-600 mt-1">
+                                AI confidence below 70% - manual verification recommended
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* AI Metrics */}
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="p-2 rounded-lg bg-gradient-to-br from-blue-50 to-white border">
+                        <div className={`p-2 rounded-lg border ${
+                          issue.needs_recheck
+                            ? 'bg-yellow-50 border-yellow-300'
+                            : 'bg-gradient-to-br from-blue-50 to-white'
+                        }`}>
                           <div className="text-xs text-muted-foreground">AI Confidence</div>
-                          <div className="text-lg font-bold text-blue-600">
+                          <div className={`text-lg font-bold ${
+                            issue.needs_recheck ? 'text-yellow-600' : 'text-blue-600'
+                          }`}>
                             {(issue.confidence * 100).toFixed(0)}%
                           </div>
                         </div>
@@ -763,11 +797,19 @@ const IoTSensors = () => {
                         {issue.severity !== 'info' && (
                           <Button
                             size="sm"
-                            className="flex-1 text-xs bg-gradient-to-r from-orange-500 to-red-500 text-white"
-                            onClick={() => toast.success('Technician dispatched!')}
+                            className={`flex-1 text-xs ${
+                              issue.has_sensor_error
+                                ? 'bg-red-600 hover:bg-red-700 text-white'
+                                : 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                            }`}
+                            onClick={() =>
+                              issue.has_sensor_error
+                                ? toast.error('Sensor repair required!')
+                                : toast.success('Technician dispatched!')
+                            }
                           >
                             <Wrench className="w-3 h-3 mr-1" />
-                            Dispatch
+                            {issue.has_sensor_error ? 'Repair Sensor' : 'Dispatch'}
                           </Button>
                         )}
                       </div>
