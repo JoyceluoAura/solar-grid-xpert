@@ -18,174 +18,25 @@ export type IssueType =
 
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
-const PANEL_WIDTH = 400;
-const PANEL_HEIGHT = 300;
-
-const buildPanelSvg = ({
-  title,
-  subtitle,
-  accentFrom,
-  accentTo,
-  overlay,
-  glow,
-}: {
-  title: string;
-  subtitle: string;
-  accentFrom: string;
-  accentTo: string;
-  overlay: string;
-  glow?: string;
-}) => {
+const createPoster = (title: string, subtitle: string, gradientFrom: string, gradientTo: string) => {
   const svg = `
-    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${PANEL_WIDTH} ${PANEL_HEIGHT}'>
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
       <defs>
-        <linearGradient id='panel-gradient' x1='0%' y1='0%' x2='0%' y2='100%'>
-          <stop offset='0%' stop-color='#0f172a'/>
-          <stop offset='100%' stop-color='#1e293b'/>
-        </linearGradient>
-        <linearGradient id='accent-gradient' x1='0%' y1='0%' x2='100%' y2='100%'>
-          <stop offset='0%' stop-color='${accentFrom}' />
-          <stop offset='100%' stop-color='${accentTo}' />
+        <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'>
+          <stop offset='0%' stop-color='${gradientFrom}' />
+          <stop offset='100%' stop-color='${gradientTo}' />
         </linearGradient>
       </defs>
-      <rect width='${PANEL_WIDTH}' height='${PANEL_HEIGHT}' rx='28' ry='28' fill='url(#accent-gradient)' opacity='0.2'/>
-      <g transform='translate(34 36)'>
-        <rect width='332' height='210' rx='20' ry='20' fill='url(#panel-gradient)' stroke='rgba(59,130,246,0.35)' stroke-width='8'/>
-        <g stroke='rgba(148,163,184,0.35)' stroke-width='2'>
-          ${Array.from({ length: 3 })
-            .map((_, i) => `<line x1='0' y1='${50 + i * 40}' x2='332' y2='${50 + i * 40}' />`)
-            .join('')}
-          ${Array.from({ length: 5 })
-            .map((_, i) => `<line x1='${55 + i * 55}' y1='0' x2='${55 + i * 55}' y2='210' />`)
-            .join('')}
-        </g>
-        ${glow ?? ''}
-        ${overlay}
+      <rect width='400' height='300' fill='url(#grad)' rx='24' ry='24'/>
+      <g fill='rgba(255,255,255,0.85)'>
+        <text x='32' y='150' font-size='42' font-weight='700' font-family='Inter,sans-serif'>${title}</text>
+        <text x='32' y='198' font-size='22' font-weight='500' font-family='Inter,sans-serif'>${subtitle}</text>
       </g>
-      <rect x='30' y='230' width='340' height='54' rx='16' ry='16' fill='rgba(15,23,42,0.85)' />
-      <text x='50' y='260' font-size='26' font-weight='700' fill='white' font-family='Inter, sans-serif'>${title}</text>
-      <text x='50' y='285' font-size='18' font-weight='500' fill='rgba(226,232,240,0.9)' font-family='Inter, sans-serif'>${subtitle}</text>
     </svg>
   `;
 
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
-
-const createOverlay = (type: IssueType, variant: number) => {
-  const seed = variant + 1;
-  switch (type) {
-    case 'hotspot': {
-      const radius = 55 + seed * 6;
-      const glow = `
-        <defs>
-          <radialGradient id='hotspot-${variant}' cx='50%' cy='50%' r='50%'>
-            <stop offset='0%' stop-color='rgba(239,68,68,0.95)' />
-            <stop offset='50%' stop-color='rgba(249,115,22,0.75)' />
-            <stop offset='100%' stop-color='rgba(253,224,71,0.05)' />
-          </radialGradient>
-        </defs>
-        <circle cx='180' cy='110' r='${radius}' fill='url(#hotspot-${variant})'>
-          <animate attributeName='r' values='${radius};${radius + 6};${radius}' dur='4s' repeatCount='indefinite' />
-        </circle>
-      `;
-      return { overlay: '', glow };
-    }
-    case 'crack': {
-      const crackPaths = [
-        `M40,40 L280,180`,
-        `M120,20 L200,200`,
-        `M200,60 L320,150`,
-      ]
-        .slice(0, 2 + (seed % 2))
-        .map(
-          (d, idx) =>
-            `<path d='${d}' stroke='rgba(236,72,153,0.85)' stroke-width='${3 + idx}' stroke-linecap='round' stroke-dasharray='12 ${4 + idx * 2}' />`
-        )
-        .join('');
-      return {
-        overlay: `<g>${crackPaths}</g>`,
-        glow: `<g opacity='0.18'><rect x='0' y='0' width='332' height='210' fill='rgba(124,58,237,0.4)' /></g>`,
-      };
-    }
-    case 'soiling': {
-      const dropShapes = Array.from({ length: 4 + seed }, (_, idx) => {
-        const x = 40 + (idx * 60) % 260 + (idx % 2 === 0 ? 12 : -8);
-        const y = 80 + (idx % 3) * 30;
-        const size = 26 + (idx % 3) * 6;
-        return `<path d='M${x} ${y} q10 -18 22 0 q-6 18 -22 24 q-16 -6 -10 -24' fill='rgba(234,179,8,0.85)' stroke='rgba(202,138,4,0.6)' stroke-width='2' />`;
-      }).join('');
-      return {
-        overlay: `<g>${dropShapes}</g>`,
-        glow: `<rect x='0' y='120' width='332' height='80' fill='rgba(245,158,11,0.25)' />`,
-      };
-    }
-    case 'delamination': {
-      const waves = Array.from({ length: 3 }, (_, idx) => {
-        const y = 70 + idx * 40 + variant * 4;
-        return `<path d='M30 ${y} q50 -20 100 0 t100 0 t100 0' fill='none' stroke='rgba(14,165,233,0.7)' stroke-width='${3 + idx}' stroke-linecap='round' stroke-dasharray='14 8' />`;
-      }).join('');
-      return {
-        overlay: `<g>${waves}</g>`,
-        glow: `<rect x='0' y='0' width='332' height='210' fill='rgba(14,165,233,0.12)' />`,
-      };
-    }
-    case 'shadow': {
-      const gradientId = `shadow-${variant}`;
-      const offset = 60 + variant * 20;
-      const gradient = `
-        <defs>
-          <linearGradient id='${gradientId}' x1='0%' y1='0%' x2='100%' y2='0%'>
-            <stop offset='0%' stop-color='rgba(30,64,175,0.95)' />
-            <stop offset='50%' stop-color='rgba(59,130,246,0.35)' />
-            <stop offset='100%' stop-color='rgba(125,211,252,0.05)' />
-          </linearGradient>
-        </defs>
-      `;
-      return {
-        overlay: `${gradient}<rect x='${offset}' y='0' width='220' height='210' fill='url(#${gradientId})' />`,
-        glow: `<rect x='0' y='0' width='332' height='210' fill='rgba(37,99,235,0.15)' />`,
-      };
-    }
-    case 'snow': {
-      const snowDrifts = Array.from({ length: 3 }, (_, idx) => {
-        const y = 160 + idx * 8;
-        const opacity = 0.85 - idx * 0.2;
-        return `<path d='M-10 ${y} q60 -40 120 0 t120 0 t120 0 t120 0' fill='rgba(255,255,255,${opacity})' />`;
-      }).join('');
-      const flakes = Array.from({ length: 16 }, (_, idx) => {
-        const x = 30 + (idx * 22) % 310;
-        const y = 30 + ((idx * 37) % 150);
-        const size = 4 + (idx % 3);
-        return `<circle cx='${x}' cy='${y}' r='${size / 2}' fill='rgba(255,255,255,0.8)' />`;
-      }).join('');
-      return {
-        overlay: `<g>${snowDrifts}${flakes}</g>`,
-        glow: `<rect x='0' y='0' width='332' height='210' fill='rgba(148,163,184,0.18)' />`,
-      };
-    }
-    default: {
-      return {
-        overlay: `<g opacity='0.25'>
-          <circle cx='90' cy='110' r='16' fill='rgba(34,197,94,0.7)' />
-          <circle cx='150' cy='140' r='20' fill='rgba(34,197,94,0.5)' />
-          <circle cx='240' cy='100' r='18' fill='rgba(34,197,94,0.6)' />
-        </g>`,
-        glow: `<rect x='0' y='0' width='332' height='210' fill='rgba(34,197,94,0.12)' />`,
-      };
-    }
-  }
-};
-
-const createPoster = (title: string, subtitle: string, gradientFrom: string, gradientTo: string) =>
-  buildPanelSvg({ title, subtitle, accentFrom: gradientFrom, accentTo: gradientTo, overlay: '', glow: '' });
-
-export interface SolarIssueHistoryFrame {
-  timestamp: string;
-  label: string;
-  imageUrl: string;
-  notes: string;
-  severity: SeverityLevel;
-}
 
 export interface SolarIssue {
   id: string;
@@ -200,8 +51,6 @@ export interface SolarIssue {
   // Video and visual
   videoUrl: string;
   posterUrl: string;
-  imageUrl: string;
-  history: SolarIssueHistoryFrame[];
 
   // AI metrics
   confidence: number;           // 0-1 confidence score
@@ -241,13 +90,6 @@ interface IssueMapping {
   energy_loss_range: [number, number]; // min, max %
   visual_effect: string;
   recommendations: string[];
-  accent: { from: string; to: string };
-  historyTimeline: Array<{
-    label: string;
-    hoursAgo: number;
-    notes: string;
-    severity?: SeverityLevel;
-  }>;
 }
 
 class SolarIssueService {
@@ -269,13 +111,7 @@ class SolarIssueService {
         'Check for cell bypass diode failure',
         'Verify string voltage and current',
         'Consider panel replacement if severe'
-      ],
-      accent: { from: '#f97316', to: '#facc15' },
-      historyTimeline: [
-        { label: '24h ago', hoursAgo: 24, notes: 'Initial mild heating visible', severity: 'high' },
-        { label: '12h ago', hoursAgo: 12, notes: 'Hotspot expanding across cells', severity: 'high' },
-        { label: '1h ago', hoursAgo: 1, notes: 'Critical temperature spike detected', severity: 'critical' },
-      ],
+      ]
     },
     crack: {
       type: 'crack',
@@ -290,13 +126,7 @@ class SolarIssueService {
         'Monitor for crack expansion',
         'Check warranty coverage',
         'Plan panel replacement'
-      ],
-      accent: { from: '#7c3aed', to: '#ec4899' },
-      historyTimeline: [
-        { label: '3d ago', hoursAgo: 72, notes: 'Hairline fracture detected', severity: 'medium' },
-        { label: '24h ago', hoursAgo: 24, notes: 'Crack spreading across cells', severity: 'high' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'Structural integrity compromised', severity: 'high' },
-      ],
+      ]
     },
     soiling: {
       type: 'soiling',
@@ -311,13 +141,7 @@ class SolarIssueService {
         'Consider automated cleaning system',
         'Check local weather patterns',
         'Implement preventive maintenance'
-      ],
-      accent: { from: '#b45309', to: '#f59e0b' },
-      historyTimeline: [
-        { label: '7d ago', hoursAgo: 168, notes: 'Light debris detected on upper cells', severity: 'low' },
-        { label: '2d ago', hoursAgo: 48, notes: 'Bird droppings covering cell junction', severity: 'medium' },
-        { label: 'Today', hoursAgo: 2, notes: 'Generation loss exceeds 12%', severity: 'medium' },
-      ],
+      ]
     },
     delamination: {
       type: 'delamination',
@@ -332,13 +156,7 @@ class SolarIssueService {
         'Check warranty status',
         'Monitor progression rate',
         'Plan panel replacement'
-      ],
-      accent: { from: '#0ea5e9', to: '#22d3ee' },
-      historyTimeline: [
-        { label: '10d ago', hoursAgo: 240, notes: 'Minor delamination around edges', severity: 'medium' },
-        { label: '3d ago', hoursAgo: 72, notes: 'Encapsulant bubbling expanding', severity: 'high' },
-        { label: 'Now', hoursAgo: 1, notes: 'Moisture ingress imminent', severity: 'high' },
-      ],
+      ]
     },
     shadow: {
       type: 'shadow',
@@ -353,13 +171,7 @@ class SolarIssueService {
         'Trim vegetation if applicable',
         'Consider panel relocation',
         'Install bypass diodes'
-      ],
-      accent: { from: '#1d4ed8', to: '#0ea5e9' },
-      historyTimeline: [
-        { label: '2d ago', hoursAgo: 48, notes: 'Morning shading from tree growth', severity: 'medium' },
-        { label: '12h ago', hoursAgo: 12, notes: 'Cloud bank causes intermittent losses', severity: 'medium' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'Heavy shading reducing string output', severity: 'medium' },
-      ],
+      ]
     },
     snow: {
       type: 'snow',
@@ -374,13 +186,7 @@ class SolarIssueService {
         'Consider snow removal if urgent',
         'Check tilt angle optimization',
         'Install heating elements for frequent snow'
-      ],
-      accent: { from: '#94a3b8', to: '#38bdf8' },
-      historyTimeline: [
-        { label: '18h ago', hoursAgo: 18, notes: 'Light dusting accumulating', severity: 'low' },
-        { label: '6h ago', hoursAgo: 6, notes: 'Partial snow cover on lower string', severity: 'medium' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'Thick snow layer blocking output', severity: 'medium' },
-      ],
+      ]
     },
     none: {
       type: 'none',
@@ -395,13 +201,7 @@ class SolarIssueService {
         'Maintain regular cleaning schedule',
         'Keep up preventive maintenance',
         'Review performance quarterly'
-      ],
-      accent: { from: '#22c55e', to: '#4ade80' },
-      historyTimeline: [
-        { label: '7d ago', hoursAgo: 168, notes: 'All strings nominal', severity: 'info' },
-        { label: '24h ago', hoursAgo: 24, notes: 'Healthy production trend', severity: 'info' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'No alerts detected', severity: 'info' },
-      ],
+      ]
     }
   };
 
@@ -469,16 +269,6 @@ class SolarIssueService {
   ): SolarIssue {
     const mapping = this.issueMapping[issueType];
     const detectedAt = new Date();
-
-    const { overlay: liveOverlay, glow: liveGlow } = createOverlay(issueType, 0);
-    const imageUrl = buildPanelSvg({
-      title: mapping.visual_effect,
-      subtitle: `${location} • ${mapping.description}`,
-      accentFrom: mapping.accent.from,
-      accentTo: mapping.accent.to,
-      overlay: liveOverlay,
-      glow: liveGlow,
-    });
 
     // Calculate if issue is "live" (< 10 minutes old)
     const isLive = true; // For demo, always live
@@ -568,25 +358,6 @@ class SolarIssueService {
       location,
       videoUrl: mapping.videoUrl,
       posterUrl: mapping.posterUrl,
-      imageUrl,
-      history: mapping.historyTimeline.map((entry, idx) => {
-        const { overlay, glow } = createOverlay(issueType, idx + 1);
-        const timestamp = new Date(detectedAt.getTime() - entry.hoursAgo * 60 * 60 * 1000);
-        return {
-          timestamp: timestamp.toISOString(),
-          label: entry.label,
-          notes: entry.notes,
-          severity: entry.severity ?? mapping.typical_severity,
-          imageUrl: buildPanelSvg({
-            title: mapping.visual_effect,
-            subtitle: entry.notes,
-            accentFrom: mapping.accent.from,
-            accentTo: mapping.accent.to,
-            overlay,
-            glow,
-          }),
-        };
-      }),
       confidence,
       energy_loss_percent: Math.round(energyLoss * 10) / 10,
       predicted_kwh_loss: Math.round(predictedKwhLoss * 10) / 10,

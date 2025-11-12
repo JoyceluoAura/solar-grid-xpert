@@ -17,7 +17,6 @@ import {
   Battery,
   Camera,
   Video,
-  Clock,
   Sun,
   RefreshCw,
   TrendingUp,
@@ -81,32 +80,6 @@ interface DisplayDataPoint {
   configIrradiance: Record<string, number>;
   configTemps: Record<string, number>;
 }
-
-interface DisplaySensor {
-  id: string;
-  sensor_name: string;
-  sensor_type: string;
-  protocol: string;
-  device_id: string;
-  status: 'online' | 'offline' | 'error';
-  last_value?: string;
-  last_updated?: string;
-}
-
-const formatRelativeTime = (iso?: string) => {
-  if (!iso) return 'Updated just now';
-  const updated = new Date(iso);
-  if (Number.isNaN(updated.getTime())) return 'Updated just now';
-  const diffMs = Date.now() - updated.getTime();
-  if (diffMs < 0) return 'Updated just now';
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'Updated seconds ago';
-  if (minutes < 60) return `Updated ${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Updated ${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `Updated ${days}d ago`;
-};
 
 const IoTSensors = () => {
   const { user } = useAuth();
@@ -297,111 +270,6 @@ const IoTSensors = () => {
     }
   };
 
-  const combinedSensors = useMemo<DisplaySensor[]>(() => {
-    const virtualSensors: DisplaySensor[] = [];
-    const latestSolar = solarData[solarData.length - 1];
-    const latestBattery = batteryMetrics[batteryMetrics.length - 1];
-    const latestInverter = inverterMetrics[inverterMetrics.length - 1];
-
-    if (latestSolar) {
-      virtualSensors.push(
-        {
-          id: 'virtual-irradiance',
-          sensor_name: 'Rooftop Irradiance Sensor',
-          sensor_type: 'irradiance',
-          protocol: 'modbus',
-          device_id: 'IRR-001',
-          status: 'online',
-          last_value: `${latestSolar.irradiance.toFixed(0)} W/m²`,
-          last_updated: latestSolar.timestamp,
-        },
-        {
-          id: 'virtual-ambient',
-          sensor_name: 'Ambient Temperature Probe',
-          sensor_type: 'temperature',
-          protocol: 'modbus',
-          device_id: 'TMP-OUT-01',
-          status: 'online',
-          last_value: `${latestSolar.ambient_temp.toFixed(1)} °C`,
-          last_updated: latestSolar.timestamp,
-        },
-      );
-    }
-
-    if (latestBattery) {
-      virtualSensors.push({
-        id: 'virtual-battery',
-        sensor_name: 'Battery Storage Controller',
-        sensor_type: 'battery',
-        protocol: 'modbus',
-        device_id: 'BAT-HV-01',
-        status: 'online',
-        last_value: `${latestBattery.stateOfCharge.toFixed(0)}% SOC • ${latestBattery.status.toUpperCase()}`,
-        last_updated: latestBattery.timestamp,
-      });
-    }
-
-    if (latestInverter) {
-      virtualSensors.push({
-        id: 'virtual-inverter',
-        sensor_name: 'Central Inverter Monitor',
-        sensor_type: 'inverter',
-        protocol: 'modbus',
-        device_id: 'INV-MAIN-01',
-        status: 'online',
-        last_value: `${latestInverter.acOutputKw.toFixed(1)} kW • ${latestInverter.efficiencyPct.toFixed(1)}% eff`,
-        last_updated: latestInverter.timestamp,
-      });
-    }
-
-    if (solarIssues.length > 0) {
-      const criticalIssues = solarIssues.filter((issue) => issue.severity === 'critical' || issue.severity === 'high');
-      virtualSensors.push({
-        id: 'virtual-camera',
-        sensor_name: 'Array Visual Camera',
-        sensor_type: 'camera',
-        protocol: 'rtsp',
-        device_id: criticalIssues[0]?.panel_id ?? 'CAM-ROOF-01',
-        status: 'online',
-        last_value:
-          criticalIssues.length > 0
-            ? `${criticalIssues.length} urgent alerts`
-            : `${solarIssues.length} visual records`,
-        last_updated: visualLastUpdated.toISOString(),
-      });
-    }
-
-    return [
-      ...virtualSensors,
-      ...sensors.map((sensor, index) => {
-        const normalizedType = sensor.sensor_type === 'thermal' ? 'temperature' : sensor.sensor_type;
-        const assumedLive = Date.now() - lastUpdated.getTime() < 5 * 60 * 1000;
-        const status: DisplaySensor['status'] = sensor.status === 'offline' && assumedLive
-          ? 'online'
-          : (sensor.status as DisplaySensor['status']) || 'online';
-
-        return {
-          id: sensor.id ?? `db-sensor-${index}`,
-          sensor_name: sensor.sensor_name || `Sensor ${index + 1}`,
-          sensor_type: normalizedType,
-          protocol: sensor.protocol || 'mqtt',
-          device_id: sensor.device_id || `SENSOR-${index + 1}`,
-          status,
-          last_value: sensor.last_value,
-          last_updated: sensor.updated_at || sensor.created_at || lastUpdated.toISOString(),
-        };
-      }),
-    ];
-  }, [
-    sensors,
-    solarData,
-    batteryMetrics,
-    inverterMetrics,
-    solarIssues,
-    lastUpdated,
-    visualLastUpdated,
-  ]);
-
   const handleAddSensor = async () => {
     if (!user) return;
 
@@ -433,8 +301,6 @@ const IoTSensors = () => {
     switch (type) {
       case "temperature":
         return Thermometer;
-      case "irradiance":
-        return Sun;
       case "inverter":
       case "voltage":
         return Zap;
@@ -444,23 +310,6 @@ const IoTSensors = () => {
         return Camera;
       default:
         return Activity;
-    }
-  };
-
-  const getSensorGradient = (type: string) => {
-    switch (type) {
-      case "battery":
-        return "gradient-eco";
-      case "inverter":
-        return "gradient-energy";
-      case "camera":
-        return "gradient-night";
-      case "irradiance":
-        return "gradient-solar";
-      case "temperature":
-        return "gradient-solar";
-      default:
-        return "gradient-energy";
     }
   };
 
@@ -842,29 +691,28 @@ const IoTSensors = () => {
         </div>
 
         {/* Connected Sensors */}
-        {combinedSensors.length > 0 && (
+        {sensors.length > 0 && (
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5 text-solar-orange" />
-                Connected Sensors ({combinedSensors.length})
+                Connected Sensors ({sensors.length})
               </CardTitle>
               <CardDescription>IoT devices monitoring your solar installation</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {combinedSensors.map((sensor) => {
+                {sensors.map((sensor) => {
                   const normalizedType = sensor.sensor_type === 'thermal' ? 'temperature' : sensor.sensor_type;
                   const Icon = getSensorIcon(normalizedType);
                   const statusColor = getStatusColor(sensor.status);
-                  const gradientClass = getSensorGradient(normalizedType);
                   return (
                     <div
                       key={sensor.id}
                       className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-md transition-all"
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-lg ${gradientClass} flex items-center justify-center flex-shrink-0`}>
+                        <div className={`w-10 h-10 rounded-lg gradient-${normalizedType === 'battery' ? 'eco' : normalizedType === 'inverter' ? 'energy' : 'solar'} flex items-center justify-center flex-shrink-0`}>
                           <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -877,20 +725,6 @@ const IoTSensors = () => {
                           <p className="text-xs text-muted-foreground capitalize mb-2">
                             {normalizedType.replace('_', ' ')}
                           </p>
-                          {sensor.last_value && (
-                            <p className="text-sm font-semibold text-foreground mb-2 line-clamp-2">
-                              {sensor.last_value}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-2">
-                            {sensor.status === 'online' && (
-                              <span className="flex items-center gap-1 text-emerald-600">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                Live
-                              </span>
-                            )}
-                            <span>{formatRelativeTime(sensor.last_updated)}</span>
-                          </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="truncate">{sensor.protocol.toUpperCase()}</span>
                             <span>•</span>
@@ -904,9 +738,9 @@ const IoTSensors = () => {
               </div>
             </CardContent>
           </Card>
-        )
+        )}
 
-{/* Tabs for Data vs Visual */}
+        {/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="data">
@@ -1546,9 +1380,13 @@ const IoTSensors = () => {
                     }`}
                   >
                     <div className="relative aspect-video bg-black">
-                      <img
-                        src={issue.imageUrl}
-                        alt={`${issue.name} visual evidence`}
+                      <video
+                        src={issue.videoUrl}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        poster={issue.posterUrl}
                         className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-90"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-all group-hover:from-black/95" />
@@ -1562,8 +1400,8 @@ const IoTSensors = () => {
                           </Badge>
                         )}
                         <Badge className="bg-black/50 backdrop-blur-sm">
-                          <Camera className="w-3 h-3 mr-1" />
-                          Snapshot
+                          <Video className="w-3 h-3 mr-1" />
+                          5s
                         </Badge>
                       </div>
 
@@ -1594,10 +1432,6 @@ const IoTSensors = () => {
                             <Zap className="w-3 h-3" />
                             {issue.sensor_data.power_output.toFixed(0)}W
                           </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-white/70">
-                          <Clock className="w-3 h-3" />
-                          {formatRelativeTime(issue.detected_at)}
                         </div>
                       </div>
                     </div>
@@ -1686,47 +1520,6 @@ const IoTSensors = () => {
                           </span>
                         </div>
                       </div>
-
-                      {issue.history.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                            <span>History Snapshots</span>
-                            <span className="font-normal text-foreground/60">
-                              Last review {formatRelativeTime(issue.history[issue.history.length - 1]?.timestamp)}
-                            </span>
-                          </div>
-                          <div className="flex gap-3 overflow-x-auto pb-2">
-                            {issue.history.map((frame) => (
-                              <div
-                                key={frame.timestamp}
-                                className="min-w-[150px] border border-border/60 rounded-lg bg-muted/40 backdrop-blur-sm"
-                              >
-                                <div className="aspect-video overflow-hidden rounded-t-lg">
-                                  <img
-                                    src={frame.imageUrl}
-                                    alt={`${issue.name} ${frame.label}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <div className="p-2 space-y-1 text-xs">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-semibold text-foreground">{frame.label}</span>
-                                    <Badge className={`${getSeverityColor(frame.severity)} text-white px-2 py-0.5`}>
-                                      {frame.severity.toUpperCase()}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-muted-foreground leading-tight line-clamp-3">
-                                    {frame.notes}
-                                  </p>
-                                  <p className="text-[10px] text-muted-foreground/70">
-                                    {new Date(frame.timestamp).toLocaleString()}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
                       {/* Actions */}
                       <div className="flex gap-2">
