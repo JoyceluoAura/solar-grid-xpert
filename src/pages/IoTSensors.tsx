@@ -39,6 +39,7 @@ import { nasaPowerService, SolarWeatherData } from "@/services/nasaPower";
 import { solarIssueService, SolarIssue } from "@/services/solarIssues";
 import { weatherDataService, SolarSample } from "@/services/weatherData";
 import { deviceMetricsService, BatteryMetric, InverterMetric, DeviceMetricsSummary } from "@/services/deviceMetrics";
+import { getFallbackSensors } from "@/lib/mockSensors";
 
 const PANEL_CONFIGURATIONS = [
   {
@@ -261,10 +262,15 @@ const IoTSensors = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setSensors(data || []);
+      if (data && data.length > 0) {
+        setSensors(data);
+      } else {
+        setSensors(getFallbackSensors());
+      }
     } catch (error: any) {
       toast.error("Failed to load sensors");
       console.error(error);
+      setSensors(getFallbackSensors());
     } finally {
       setLoading(false);
     }

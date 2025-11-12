@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { getFallbackSensors } from "@/lib/mockSensors";
 
 interface Site {
   id: string;
@@ -95,9 +96,14 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      setSensors(data || []);
+      if (data && data.length > 0) {
+        setSensors(data);
+      } else {
+        setSensors(getFallbackSensors());
+      }
     } catch (error: any) {
       console.error("Failed to load sensors:", error);
+      setSensors(getFallbackSensors());
     }
   };
 
