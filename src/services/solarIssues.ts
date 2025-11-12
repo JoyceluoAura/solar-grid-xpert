@@ -6,17 +6,13 @@
  */
 
 import { SolarWeatherData } from './nasaPower';
-
-export type IssueType =
-  | 'hotspot'
-  | 'crack'
-  | 'soiling'
-  | 'delamination'
-  | 'shadow'
-  | 'snow'
-  | 'none';
-
-export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
+import { ISSUE_ASSET_LIBRARY } from './solarIssueAssets';
+import {
+  IssueAssetDefinition,
+  IssueType,
+  SeverityLevel,
+  SolarIssueHistoryTemplate,
+} from './solarIssueTypes';
 
 const PANEL_WIDTH = 400;
 const PANEL_HEIGHT = 300;
@@ -238,174 +234,45 @@ interface IssueMapping {
   posterUrl: string;
   description: string;
   typical_severity: SeverityLevel;
-  energy_loss_range: [number, number]; // min, max %
+  energy_loss_range: IssueAssetDefinition['energyLossRange'];
   visual_effect: string;
   recommendations: string[];
-  accent: { from: string; to: string };
-  historyTimeline: Array<{
-    label: string;
-    hoursAgo: number;
-    notes: string;
-    severity?: SeverityLevel;
-  }>;
+  accent: IssueAssetDefinition['accent'];
+  historyTimeline: SolarIssueHistoryTemplate[];
 }
 
 class SolarIssueService {
   private static instance: SolarIssueService;
+  private readonly issueMapping: Record<IssueType, IssueMapping>;
 
-  // Issue type to video mapping with realistic solar panel URLs
-  // Using actual solar panel inspection and monitoring videos
-  private issueMapping: Record<IssueType, IssueMapping> = {
-    hotspot: {
-      type: 'hotspot',
-      videoUrl: 'https://videos.pexels.com/video-files/8092472/8092472-uhd_2560_1440_25fps.mp4',
-      posterUrl: createPoster('Hotspot Detected', 'Cell overheating pattern', '#ef4444', '#f97316'),
-      description: 'Thermal anomaly detected - immediate inspection required',
-      typical_severity: 'critical',
-      energy_loss_range: [15, 35],
-      visual_effect: 'Thermal glow pulsing on panel cells',
-      recommendations: [
-        'Schedule immediate thermal inspection',
-        'Check for cell bypass diode failure',
-        'Verify string voltage and current',
-        'Consider panel replacement if severe'
-      ],
-      accent: { from: '#f97316', to: '#facc15' },
-      historyTimeline: [
-        { label: '24h ago', hoursAgo: 24, notes: 'Initial mild heating visible', severity: 'high' },
-        { label: '12h ago', hoursAgo: 12, notes: 'Hotspot expanding across cells', severity: 'high' },
-        { label: '1h ago', hoursAgo: 1, notes: 'Critical temperature spike detected', severity: 'critical' },
-      ],
-    },
-    crack: {
-      type: 'crack',
-      videoUrl: 'https://videos.pexels.com/video-files/9604094/9604094-uhd_2560_1440_24fps.mp4',
-      posterUrl: createPoster('Cracked Glass', 'Micro-fracture on string', '#7c3aed', '#ec4899'),
-      description: 'Physical crack detected on panel surface',
-      typical_severity: 'high',
-      energy_loss_range: [10, 25],
-      visual_effect: 'Micro-crack appearing with reflection',
-      recommendations: [
-        'Document crack size and location',
-        'Monitor for crack expansion',
-        'Check warranty coverage',
-        'Plan panel replacement'
-      ],
-      accent: { from: '#7c3aed', to: '#ec4899' },
-      historyTimeline: [
-        { label: '3d ago', hoursAgo: 72, notes: 'Hairline fracture detected', severity: 'medium' },
-        { label: '24h ago', hoursAgo: 24, notes: 'Crack spreading across cells', severity: 'high' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'Structural integrity compromised', severity: 'high' },
-      ],
-    },
-    soiling: {
-      type: 'soiling',
-      videoUrl: 'https://videos.pexels.com/video-files/6076970/6076970-uhd_3840_2160_25fps.mp4',
-      posterUrl: createPoster('Bird Droppings', 'Soiling across cells', '#ca8a04', '#facc15'),
-      description: 'Heavy dust accumulation reducing efficiency',
-      typical_severity: 'medium',
-      energy_loss_range: [5, 15],
-      visual_effect: 'Dust layer reducing shine',
-      recommendations: [
-        'Schedule cleaning service',
-        'Consider automated cleaning system',
-        'Check local weather patterns',
-        'Implement preventive maintenance'
-      ],
-      accent: { from: '#b45309', to: '#f59e0b' },
-      historyTimeline: [
-        { label: '7d ago', hoursAgo: 168, notes: 'Light debris detected on upper cells', severity: 'low' },
-        { label: '2d ago', hoursAgo: 48, notes: 'Bird droppings covering cell junction', severity: 'medium' },
-        { label: 'Today', hoursAgo: 2, notes: 'Generation loss exceeds 12%', severity: 'medium' },
-      ],
-    },
-    delamination: {
-      type: 'delamination',
-      videoUrl: 'https://videos.pexels.com/video-files/4496260/4496260-uhd_3840_2160_24fps.mp4',
-      posterUrl: createPoster('Delamination', 'Encapsulant bubbling', '#0ea5e9', '#22d3ee'),
-      description: 'Layer separation detected - monitor closely',
-      typical_severity: 'high',
-      energy_loss_range: [12, 30],
-      visual_effect: 'Film bubble growth',
-      recommendations: [
-        'Inspect for water ingress',
-        'Check warranty status',
-        'Monitor progression rate',
-        'Plan panel replacement'
-      ],
-      accent: { from: '#0ea5e9', to: '#22d3ee' },
-      historyTimeline: [
-        { label: '10d ago', hoursAgo: 240, notes: 'Minor delamination around edges', severity: 'medium' },
-        { label: '3d ago', hoursAgo: 72, notes: 'Encapsulant bubbling expanding', severity: 'high' },
-        { label: 'Now', hoursAgo: 1, notes: 'Moisture ingress imminent', severity: 'high' },
-      ],
-    },
-    shadow: {
-      type: 'shadow',
-      videoUrl: 'https://videos.pexels.com/video-files/6077448/6077448-uhd_3840_2160_25fps.mp4',
-      posterUrl: createPoster('Cloud Shading', 'Passing cumulus cover', '#1d4ed8', '#0ea5e9'),
-      description: 'Shading detected affecting output',
-      typical_severity: 'medium',
-      energy_loss_range: [20, 50],
-      visual_effect: 'Dynamic shade from nearby object',
-      recommendations: [
-        'Identify shading source',
-        'Trim vegetation if applicable',
-        'Consider panel relocation',
-        'Install bypass diodes'
-      ],
-      accent: { from: '#1d4ed8', to: '#0ea5e9' },
-      historyTimeline: [
-        { label: '2d ago', hoursAgo: 48, notes: 'Morning shading from tree growth', severity: 'medium' },
-        { label: '12h ago', hoursAgo: 12, notes: 'Cloud bank causes intermittent losses', severity: 'medium' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'Heavy shading reducing string output', severity: 'medium' },
-      ],
-    },
-    snow: {
-      type: 'snow',
-      videoUrl: 'https://videos.pexels.com/video-files/2675514/2675514-uhd_2560_1440_25fps.mp4',
-      posterUrl: createPoster('Snow Cover', 'Panels partially buried', '#94a3b8', '#38bdf8'),
-      description: 'Snow coverage affecting generation',
-      typical_severity: 'low',
-      energy_loss_range: [80, 100],
-      visual_effect: 'Snow layer on panel surface',
-      recommendations: [
-        'Monitor for natural snow melt',
-        'Consider snow removal if urgent',
-        'Check tilt angle optimization',
-        'Install heating elements for frequent snow'
-      ],
-      accent: { from: '#94a3b8', to: '#38bdf8' },
-      historyTimeline: [
-        { label: '18h ago', hoursAgo: 18, notes: 'Light dusting accumulating', severity: 'low' },
-        { label: '6h ago', hoursAgo: 6, notes: 'Partial snow cover on lower string', severity: 'medium' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'Thick snow layer blocking output', severity: 'medium' },
-      ],
-    },
-    none: {
-      type: 'none',
-      videoUrl: 'https://videos.pexels.com/video-files/2611250/2611250-uhd_2560_1440_30fps.mp4',
-      posterUrl: createPoster('All Clear', 'No issues detected', '#4ade80', '#22c55e'),
-      description: 'All panels operating within normal parameters',
-      typical_severity: 'info',
-      energy_loss_range: [0, 2],
-      visual_effect: 'Normal operation',
-      recommendations: [
-        'Continue monitoring',
-        'Maintain regular cleaning schedule',
-        'Keep up preventive maintenance',
-        'Review performance quarterly'
-      ],
-      accent: { from: '#22c55e', to: '#4ade80' },
-      historyTimeline: [
-        { label: '7d ago', hoursAgo: 168, notes: 'All strings nominal', severity: 'info' },
-        { label: '24h ago', hoursAgo: 24, notes: 'Healthy production trend', severity: 'info' },
-        { label: 'Now', hoursAgo: 0.5, notes: 'No alerts detected', severity: 'info' },
-      ],
-    }
-  };
+  private constructor() {
+    this.issueMapping = Object.entries(ISSUE_ASSET_LIBRARY).reduce(
+      (acc, [issueKey, definition]) => {
+        const issueType = issueKey as IssueType;
 
-  private constructor() {}
+        acc[issueType] = {
+          type: issueType,
+          videoUrl: definition.videoUrl,
+          posterUrl: createPoster(
+            definition.poster.title,
+            definition.poster.subtitle,
+            definition.poster.accentFrom,
+            definition.poster.accentTo,
+          ),
+          description: definition.description,
+          typical_severity: definition.typicalSeverity,
+          energy_loss_range: definition.energyLossRange,
+          visual_effect: definition.visualEffect,
+          recommendations: definition.recommendations,
+          accent: definition.accent,
+          historyTimeline: definition.historyTimeline,
+        };
+
+        return acc;
+      },
+      {} as Record<IssueType, IssueMapping>,
+    );
+  }
 
   static getInstance(): SolarIssueService {
     if (!SolarIssueService.instance) {
@@ -674,3 +541,5 @@ class SolarIssueService {
 
 // Export singleton instance
 export const solarIssueService = SolarIssueService.getInstance();
+
+export type { IssueType, SeverityLevel } from './solarIssueTypes';
