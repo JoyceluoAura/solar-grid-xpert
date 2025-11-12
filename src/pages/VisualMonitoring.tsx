@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Camera, Video, AlertTriangle, CheckCircle2, Loader2, PlayCircle } from "lucide-react";
+import { Camera, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { solarIssueService, SolarIssue, IssueType } from "@/services/solarIssues";
@@ -216,24 +216,12 @@ const VisualMonitoring = () => {
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {solarIssues.map((issue) => (
                   <Card key={issue.id} className="overflow-hidden">
-                    <div className="relative aspect-video bg-black group">
-                      <video
+                    <div className="relative aspect-video bg-muted">
+                      <img
+                        src={issue.posterUrl}
+                        alt={`Solar panel - ${issue.type}`}
                         className="w-full h-full object-cover"
-                        poster={issue.posterUrl}
-                        loop
-                        muted
-                        playsInline
-                        onMouseEnter={(e) => e.currentTarget.play()}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.pause();
-                          e.currentTarget.currentTime = 0;
-                        }}
-                      >
-                        <source src={issue.videoUrl} type="video/mp4" />
-                      </video>
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <PlayCircle className="w-12 h-12 text-white" />
-                      </div>
+                      />
                       {issue.is_live && (
                         <Badge className="absolute top-2 left-2 bg-red-600 text-white">
                           <span className="animate-pulse mr-1">●</span> LIVE
