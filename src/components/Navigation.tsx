@@ -19,7 +19,6 @@ const Navigation = () => {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
-    { path: "/weather", label: "Weather", icon: MapPin },
     { path: "/sensors", label: "Sensors", icon: Activity },
     { path: "/settings", label: "Settings", icon: Settings },
   ];

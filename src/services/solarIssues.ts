@@ -37,6 +37,11 @@ export interface SolarIssue {
   energy_loss_percent: number;  // % energy loss
   predicted_kwh_loss: number;   // kWh loss per day
 
+  // Validation and errors
+  has_sensor_error: boolean;    // True if sensor data is invalid
+  needs_recheck: boolean;       // True if confidence < 70%
+  error_message?: string;       // Error description if any
+
   // Sensor data
   sensor_data: {
     panel_temp: number;         // °C
@@ -189,6 +194,49 @@ class SolarIssueService {
   }
 
   /**
+   * Validate sensor data
+   */
+  private validateSensorData(
+    irradiance: number,
+    panelTemp: number,
+    ambientTemp: number
+  ): { isValid: boolean; errorMessage?: string } {
+    // Check for invalid irradiance
+    if (irradiance < 0) {
+      return {
+        isValid: false,
+        errorMessage: 'Sensor Error: Negative irradiance value detected'
+      };
+    }
+
+    // Check for invalid panel temperature
+    if (panelTemp < -50) {
+      return {
+        isValid: false,
+        errorMessage: 'Sensor Error: Panel temperature below -50°C (sensor malfunction)'
+      };
+    }
+
+    // Check for invalid ambient temperature
+    if (ambientTemp < -50 || ambientTemp > 60) {
+      return {
+        isValid: false,
+        errorMessage: 'Sensor Error: Ambient temperature out of range'
+      };
+    }
+
+    // Check for unrealistic temperature difference
+    if (panelTemp < ambientTemp - 5) {
+      return {
+        isValid: false,
+        errorMessage: 'Sensor Error: Panel temp lower than ambient (sensor drift)'
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  /**
    * Generate solar issue with AI insights based on weather context
    */
   generateIssue(
@@ -204,8 +252,11 @@ class SolarIssueService {
     // Calculate if issue is "live" (< 10 minutes old)
     const isLive = true; // For demo, always live
 
-    // AI confidence score (90-99% for demo)
-    const confidence = 0.90 + Math.random() * 0.09;
+    // AI confidence score (varies between 65-99% for realism)
+    // Some issues will have low confidence requiring re-check
+    const confidenceBase = issueType === 'none' ? 0.95 : 0.85;
+    const confidenceVariation = (Math.random() - 0.3) * 0.25; // Can go below 0.70
+    const confidence = Math.max(0.65, Math.min(0.99, confidenceBase + confidenceVariation));
 
     // Energy loss calculation based on issue type and weather
     const energyLossBase = (mapping.energy_loss_range[0] + mapping.energy_loss_range[1]) / 2;
@@ -226,20 +277,51 @@ class SolarIssueService {
       energyLoss
     );
 
+    // Validate sensor data
+    const validation = this.validateSensorData(
+      weatherData.irradiance,
+      panelTemp,
+      weatherData.temperature
+    );
+
+    // Check if AI needs re-check (confidence < 70%)
+    const needsRecheck = confidence < 0.70;
+
     // Determine dispatch priority
     let dispatchPriority: 'immediate' | 'urgent' | 'scheduled' | 'monitor';
-    switch (mapping.typical_severity) {
-      case 'critical':
-        dispatchPriority = 'immediate';
-        break;
-      case 'high':
-        dispatchPriority = 'urgent';
-        break;
-      case 'medium':
-        dispatchPriority = 'scheduled';
-        break;
-      default:
-        dispatchPriority = 'monitor';
+    if (!validation.isValid) {
+      dispatchPriority = 'immediate'; // Sensor errors are critical
+    } else {
+      switch (mapping.typical_severity) {
+        case 'critical':
+          dispatchPriority = 'immediate';
+          break;
+        case 'high':
+          dispatchPriority = 'urgent';
+          break;
+        case 'medium':
+          dispatchPriority = 'scheduled';
+          break;
+        default:
+          dispatchPriority = 'monitor';
+      }
+    }
+
+    // Adjust recommendations if validation fails or needs recheck
+    let recommendations = [...mapping.recommendations];
+    if (!validation.isValid) {
+      recommendations = [
+        'URGENT: Check sensor calibration',
+        'Verify sensor wiring and connections',
+        'Replace faulty sensor if needed',
+        'Review recent maintenance logs'
+      ];
+    } else if (needsRecheck) {
+      recommendations = [
+        'AI Confidence Low: Re-check camera feed',
+        'Verify detection with manual inspection',
+        ...mapping.recommendations.slice(0, 2)
+      ];
     }
 
     return {
@@ -247,15 +329,20 @@ class SolarIssueService {
       site_id: siteId,
       panel_id: panelId,
       type: issueType,
-      severity: mapping.typical_severity,
-      name: `Panel ${panelId} - ${this.formatIssueType(issueType)} Detection`,
-      description: mapping.description,
+      severity: !validation.isValid ? 'critical' : mapping.typical_severity,
+      name: !validation.isValid
+        ? `Panel ${panelId} - Sensor Error Detected`
+        : `Panel ${panelId} - ${this.formatIssueType(issueType)} Detection`,
+      description: validation.errorMessage || mapping.description,
       location,
       videoUrl: mapping.videoUrl,
       posterUrl: mapping.posterUrl,
       confidence,
       energy_loss_percent: Math.round(energyLoss * 10) / 10,
       predicted_kwh_loss: Math.round(predictedKwhLoss * 10) / 10,
+      has_sensor_error: !validation.isValid,
+      needs_recheck: needsRecheck,
+      error_message: validation.errorMessage,
       sensor_data: {
         panel_temp: Math.round(panelTemp * 10) / 10,
         ambient_temp: Math.round(weatherData.temperature * 10) / 10,
@@ -266,7 +353,7 @@ class SolarIssueService {
       },
       detected_at: detectedAt.toISOString(),
       is_live: isLive,
-      recommended_actions: mapping.recommendations,
+      recommended_actions: recommendations,
       dispatch_priority: dispatchPriority,
     };
   }
