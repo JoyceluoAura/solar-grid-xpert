@@ -28,6 +28,11 @@ import {
   Calendar,
   Filter,
   Moon,
+  Brain,
+  Sparkles,
+  ThermometerSun,
+  BatteryCharging,
+  ArrowUpRight,
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,6 +84,29 @@ interface DisplayDataPoint {
   configOutputs: Record<string, number>;
   configIrradiance: Record<string, number>;
   configTemps: Record<string, number>;
+}
+
+type InsightSeverity = "critical" | "warning" | "info";
+
+interface AiInsight {
+  id: string;
+  title: string;
+  severity: InsightSeverity;
+  summary: string;
+  recommendation: string;
+  metric: string;
+  value: string;
+}
+
+interface AiSummary {
+  healthScore: number;
+  riskLevel: "Low" | "Elevated" | "High";
+  performanceRatioPct: number | null;
+  opportunityKwh: number;
+  avgRecentPower: number;
+  temperatureFlag?: string;
+  insights: AiInsight[];
+  summaryBullets: string[];
 }
 
 const IoTSensors = () => {
@@ -346,6 +374,28 @@ const IoTSensors = () => {
     }
   };
 
+  const getInsightPillStyle = (severity: InsightSeverity) => {
+    switch (severity) {
+      case "critical":
+        return "bg-red-500/10 text-red-600 border-red-500/20";
+      case "warning":
+        return "bg-amber-500/10 text-amber-600 border-amber-500/20";
+      default:
+        return "bg-blue-500/10 text-blue-600 border-blue-500/20";
+    }
+  };
+
+  const getInsightLabel = (severity: InsightSeverity) => {
+    switch (severity) {
+      case "critical":
+        return "Critical";
+      case "warning":
+        return "Warning";
+      default:
+        return "Info";
+    }
+  };
+
   // Filter solar data based on date and day/night
   const displayData = useMemo<DisplayDataPoint[]>(() => {
     const buildPoint = (
@@ -592,6 +642,171 @@ const IoTSensors = () => {
     [inverterMetrics]
   );
 
+  const aiSummary = useMemo<AiSummary | null>(() => {
+    if (!displayData.length) {
+      return null;
+    }
+
+    const systemCapacity = siteParams.system_capacity;
+    const latest = displayData[displayData.length - 1];
+    const expectedPower = Math.min(systemCapacity, (latest.irradiance / 1000) * systemCapacity);
+    const performanceRatio = expectedPower > 0 ? latest.ac_output / expectedPower : null;
+
+    const recentWindow = displayData.slice(-6);
+    const previousWindow = displayData.slice(-12, -6);
+    const avgRecentPower = recentWindow.length
+      ? recentWindow.reduce((sum, point) => sum + point.ac_output, 0) / recentWindow.length
+      : latest.ac_output;
+    const avgPreviousPower = previousWindow.length
+      ? previousWindow.reduce((sum, point) => sum + point.ac_output, 0) / previousWindow.length
+      : avgRecentPower;
+
+    const battery = batteryMetrics[batteryMetrics.length - 1];
+    const inverterEfficiency = deviceSummary?.inverter.avgEfficiencyPct ?? null;
+
+    const performancePenalty = performanceRatio !== null ? Math.max(0, (1 - performanceRatio) * 40) : 0;
+    const tempPenalty = Math.max(0, latest.cell_temp - 58) * 1.1;
+    const batteryPenalty = battery && battery.stateOfCharge < 35 ? (35 - battery.stateOfCharge) * 0.3 : 0;
+    const efficiencyPenalty =
+      inverterEfficiency !== null && inverterEfficiency < 94 ? (94 - inverterEfficiency) * 0.6 : 0;
+
+    const rawScore = 92 - performancePenalty - tempPenalty - batteryPenalty - efficiencyPenalty;
+    const healthScore = Number(Math.max(45, Math.min(98, rawScore)).toFixed(1));
+    const riskLevel: AiSummary["riskLevel"] = healthScore >= 85 ? "Low" : healthScore >= 70 ? "Elevated" : "High";
+
+    const opportunityKw = performanceRatio !== null ? Math.max(0, expectedPower - latest.ac_output) : 0;
+    const opportunityKwh = Number((opportunityKw * (viewMode === 'hourly' ? 1 : 24)).toFixed(1));
+
+    const avgCellTemp = displayData.reduce((sum, point) => sum + point.cell_temp, 0) / displayData.length;
+    const avgIrradiance = displayData.reduce((sum, point) => sum + point.irradiance, 0) / displayData.length;
+
+    const insights: AiInsight[] = [];
+    if (performanceRatio !== null) {
+      if (performanceRatio < 0.7 && latest.irradiance > 550) {
+        insights.push({
+          id: "performance-deficit",
+          title: "Performance deficit detected",
+          severity: "critical",
+          summary: `Performance ratio ${(performanceRatio * 100).toFixed(1)}% with irradiance ${latest.irradiance.toFixed(0)} W/m²`,
+          recommendation: "Inspect for string mismatch or heavy shading; compare IV traces for affected strings.",
+          metric: "Performance Ratio",
+          value: `${(performanceRatio * 100).toFixed(1)}%`,
+        });
+      } else if (performanceRatio < 0.85) {
+        insights.push({
+          id: "performance-watch",
+          title: "Performance trending below forecast",
+          severity: "warning",
+          summary: `Performance ratio ${(performanceRatio * 100).toFixed(1)}% with average irradiance ${avgIrradiance.toFixed(0)} W/m²`,
+          recommendation: "Verify inverter clipping limits and check for emerging soiling on rooftop arrays.",
+          metric: "Performance Ratio",
+          value: `${(performanceRatio * 100).toFixed(1)}%`,
+        });
+      }
+    }
+
+    if (latest.cell_temp >= 62) {
+      insights.push({
+        id: "thermal-hotspot",
+        title: "Module temperature is in critical range",
+        severity: "critical",
+        summary: `Latest cell temperature ${latest.cell_temp.toFixed(1)}°C exceeds safe threshold`,
+        recommendation: "Dispatch cleaning and inspect for hotspots using IR camera feed to prevent accelerated degradation.",
+        metric: "Cell Temp",
+        value: `${latest.cell_temp.toFixed(1)}°C`,
+      });
+    } else if (avgCellTemp >= 55) {
+      insights.push({
+        id: "thermal-trend",
+        title: "Panel temperature elevated",
+        severity: "warning",
+        summary: `Average cell temperature ${avgCellTemp.toFixed(1)}°C across telemetry window`,
+        recommendation: "Schedule rinsing during early morning hours and review ventilation or airflow around rooftop arrays.",
+        metric: "Avg Cell Temp",
+        value: `${avgCellTemp.toFixed(1)}°C`,
+      });
+    }
+
+    if (battery) {
+      if (battery.stateOfCharge < 30) {
+        insights.push({
+          id: "battery-reserve",
+          title: "Battery reserve critically low",
+          severity: "critical",
+          summary: `Latest battery state-of-charge ${battery.stateOfCharge.toFixed(1)}%`,
+          recommendation: "Throttle discharge for the next cycle and evaluate peak load profile vs. available solar charge window.",
+          metric: "Battery SoC",
+          value: `${battery.stateOfCharge.toFixed(1)}%`,
+        });
+      } else if (battery.stateOfCharge < 45) {
+        insights.push({
+          id: "battery-trend",
+          title: "Battery charge drifting downward",
+          severity: "warning",
+          summary: `Battery state-of-charge ${battery.stateOfCharge.toFixed(1)}% is below optimal reserve`,
+          recommendation: "Adjust charge schedule or reduce evening discharge to maintain resiliency margin.",
+          metric: "Battery SoC",
+          value: `${battery.stateOfCharge.toFixed(1)}%`,
+        });
+      }
+    }
+
+    if (inverterEfficiency !== null && inverterEfficiency < 93) {
+      insights.push({
+        id: "inverter-efficiency",
+        title: "Inverter efficiency dip",
+        severity: "info",
+        summary: `Average inverter efficiency ${inverterEfficiency.toFixed(1)}% over the last cycle`,
+        recommendation: "Run inverter self-diagnostics and verify DC wiring losses or clipping at peak sun hours.",
+        metric: "Avg Efficiency",
+        value: `${inverterEfficiency.toFixed(1)}%`,
+      });
+    }
+
+    if (avgRecentPower < avgPreviousPower - 2) {
+      insights.push({
+        id: "power-trend",
+        title: "Output trend declining",
+        severity: "warning",
+        summary: `Recent average power ${avgRecentPower.toFixed(1)} kW vs ${avgPreviousPower.toFixed(1)} kW previously`,
+        recommendation: "Review cleaning schedule and confirm tracker alignment; consider targeted inspection of underperforming strings.",
+        metric: "Avg Power",
+        value: `${avgRecentPower.toFixed(1)} kW`,
+      });
+    }
+
+    const summaryBullets = [
+      `Latest AC output ${latest.ac_output.toFixed(2)} kW at ${latest.irradiance.toFixed(0)} W/m² irradiance`,
+      performanceRatio !== null
+        ? `Performance ratio ${(performanceRatio * 100).toFixed(1)}% • Opportunity ${opportunityKwh.toFixed(1)} kWh`
+        : "Performance ratio awaiting irradiance reference",
+      battery
+        ? `Battery SoC ${battery.stateOfCharge.toFixed(1)}% • Daily avg ${(deviceSummary?.battery.avgSoc ?? battery.stateOfCharge).toFixed(1)}%`
+        : "Battery telemetry not available",
+    ];
+
+    if (avgRecentPower && avgPreviousPower && Math.abs(avgRecentPower - avgPreviousPower) >= 0.5) {
+      summaryBullets.push(`Average power trend ${avgRecentPower >= avgPreviousPower ? "up" : "down"} ${(avgRecentPower - avgPreviousPower).toFixed(1)} kW over last 6 samples`);
+    }
+
+    return {
+      healthScore,
+      riskLevel,
+      performanceRatioPct: performanceRatio !== null ? Number((performanceRatio * 100).toFixed(1)) : null,
+      opportunityKwh,
+      avgRecentPower: Number(avgRecentPower.toFixed(2)),
+      temperatureFlag: latest.cell_temp >= 60 ? `Cell temperature ${latest.cell_temp.toFixed(1)}°C` : undefined,
+      insights,
+      summaryBullets,
+    };
+  }, [
+    displayData,
+    siteParams.system_capacity,
+    batteryMetrics,
+    deviceSummary,
+    viewMode,
+  ]);
+
   const latestBatteryMetric = batteryMetrics[batteryMetrics.length - 1];
 
   return (
@@ -746,10 +961,14 @@ const IoTSensors = () => {
 
         {/* Tabs for Data vs Visual */}
         <Tabs defaultValue="data" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-xl">
+
             <TabsTrigger value="data">
               <Activity className="w-4 h-4 mr-2" />
               Metrics Data
+            </TabsTrigger>
+            <TabsTrigger value="analysis">
+              <Brain className="w-4 h-4 mr-2" />
+              Data Analysis
             </TabsTrigger>
             <TabsTrigger value="visual">
               <Camera className="w-4 h-4 mr-2" />
@@ -1366,6 +1585,181 @@ const IoTSensors = () => {
                   <h3 className="text-xl font-semibold mb-2">Loading Solar Data...</h3>
                   <p className="text-muted-foreground text-center mb-6">
                     Fetching live hourly data from Himawari satellite
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Data Analysis Tab */}
+          <TabsContent value="analysis" className="space-y-6">
+            {aiSummary ? (
+              <>
+                <Card className="shadow-card border-purple-200 bg-gradient-to-r from-purple-50 via-blue-50 to-orange-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-purple-500" />
+                      AI-Driven Performance Snapshot
+                    </CardTitle>
+                    <CardDescription>
+                      Combined telemetry from irradiance, inverter, and battery sensors with heuristic AI insights
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="p-4 rounded-xl bg-white/70 border">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Health Score</p>
+                        <p className="text-3xl font-bold text-purple-600 mt-1">{aiSummary.healthScore.toFixed(1)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Risk: {aiSummary.riskLevel}</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-white/70 border">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Performance Ratio</p>
+                        <p className="text-3xl font-bold text-blue-600 mt-1">
+                          {aiSummary.performanceRatioPct !== null ? `${aiSummary.performanceRatioPct.toFixed(1)}%` : "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">vs satellite baseline</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-white/70 border">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recovery Opportunity</p>
+                        <p className="text-3xl font-bold text-emerald-600 mt-1">{aiSummary.opportunityKwh.toFixed(1)} kWh</p>
+                        <p className="text-xs text-muted-foreground mt-1">Potential per day from losses</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-white/70 border">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recent Output</p>
+                        <p className="text-3xl font-bold text-sky-600 mt-1">{aiSummary.avgRecentPower.toFixed(2)} kW</p>
+                        <p className="text-xs text-muted-foreground mt-1">Mean over last 6 samples</p>
+                      </div>
+                    </div>
+                    <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
+                      {aiSummary.summaryBullets.map((bullet, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <ArrowUpRight className="w-4 h-4 mt-0.5 text-purple-500" />
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card className="shadow-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <ThermometerSun className="w-5 h-5 text-orange-500" />
+                        Thermal Watch
+                      </CardTitle>
+                      <CardDescription>Cell temperature derived from panel sensors</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="font-semibold text-foreground">
+                        {aiSummary.temperatureFlag ?? "Thermal profile within nominal range"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Evaluate cleaning schedules or airflow if temperatures trend above 58°C to prevent accelerated degradation.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BatteryCharging className="w-5 h-5 text-emerald-500" />
+                        Battery Outlook
+                      </CardTitle>
+                      <CardDescription>State-of-charge from hybrid storage model</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="font-semibold text-foreground">
+                        {latestBatteryMetric
+                          ? `Latest SoC ${latestBatteryMetric.stateOfCharge.toFixed(1)}% — ${latestBatteryMetric.status}`
+                          : "Awaiting battery telemetry"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Target {deviceSummary?.battery.avgSoc.toFixed(1) ?? "--"}% average reserve to sustain night-time load coverage.
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-blue-500" />
+                        Inverter Efficiency
+                      </CardTitle>
+                      <CardDescription>AC conversion health from inverter sensors</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="font-semibold text-foreground">
+                        {inverterAvgEfficiency !== null
+                          ? `Average efficiency ${inverterAvgEfficiency.toFixed(1)}%`
+                          : "Inverter metrics not available"}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Monitor clipping and DC wiring losses during high irradiance windows to keep efficiency above 94%.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Wrench className="w-5 h-5 text-solar-orange" />
+                      Recommended Actions
+                    </CardTitle>
+                    <CardDescription>Generated from sensor trends and AI heuristics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {aiSummary.insights.length > 0 ? (
+                      <div className="space-y-4">
+                        {aiSummary.insights.map((insight) => (
+                          <div
+                            key={insight.id}
+                            className="p-4 rounded-xl border border-border hover:shadow-md transition-all"
+                          >
+                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline" className={getInsightPillStyle(insight.severity)}>
+                                    {getInsightLabel(insight.severity)}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">{insight.metric}</span>
+                                </div>
+                                <h4 className="text-base font-semibold text-foreground">{insight.title}</h4>
+                                <p className="text-sm text-muted-foreground mt-2">{insight.summary}</p>
+                              </div>
+                              <div className="text-sm font-semibold text-foreground whitespace-nowrap">
+                                {insight.value}
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+                              <Sparkles className="w-4 h-4 mt-0.5 text-purple-500" />
+                              <span>{insight.recommendation}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between rounded-lg border border-dashed p-6">
+                        <div>
+                          <p className="font-semibold text-foreground">All systems stable</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            No actionable issues detected from the latest telemetry window.
+                          </p>
+                        </div>
+                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card className="shadow-card">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Brain className="w-16 h-16 text-muted-foreground/50 mb-4 animate-pulse" />
+                  <h3 className="text-xl font-semibold mb-2">Preparing analysis…</h3>
+                  <p className="text-muted-foreground text-center max-w-md">
+                    AI insights will appear once live sensor data has been ingested. Refresh to pull the latest satellite and device metrics.
                   </p>
                 </CardContent>
               </Card>
