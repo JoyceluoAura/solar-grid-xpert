@@ -3,23 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Calculator,
-  MapPin,
-  Battery,
-  Zap,
-  Cloud,
-  Droplets,
-  ChevronDown,
-  Cpu,
-  Image,
-  ListChecks,
-} from "lucide-react";
+import { Calculator, MapPin, Battery, Zap, Cloud, Droplets, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Badge } from "@/components/ui/badge";
 
 const Evaluate = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -548,131 +536,6 @@ const Evaluate = () => {
             )}
           </div>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-solar-orange" />
-                Qualcomm AI Hub YOLO Model
-              </CardTitle>
-              <CardDescription>
-                Computer vision workflow for detecting solar panel anomalies
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <p>
-                We will leverage the <strong>Qualcomm AI Hub YOLOv11 detection model</strong> to classify and localize
-                surface issues on photovoltaic modules. The lightweight architecture is optimized for on-device inference
-                with Qualcomm® AI Engine acceleration, making it suitable for edge deployments at remote solar sites.
-              </p>
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Model Repository</p>
-                <a
-                  href="https://github.com/quic/ai-hub-models/blob/main/qai_hub_models/models/yolov11_det"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-foreground hover:underline"
-                >
-                  Qualcomm AI Hub – YOLOv11 Detection
-                </a>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Deployment Notes</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Input resolution: 640×640 RGB imagery captured from drone or rooftop inspections.</li>
-                  <li>Optimized with ONNX / Qualcomm® AI Engine Direct runtime for edge inference.</li>
-                  <li>Outputs per-detection confidence and bounding boxes for downstream alerting.</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-card lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Image className="w-5 h-5 text-energy-blue" />
-                Solar Panel Condition Dataset
-              </CardTitle>
-              <CardDescription>
-                Curated visual scenarios for model training and validation
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Training imagery covers a diverse set of field conditions so the detector can differentiate normal and
-                fault states across climates and installation styles.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  "Clean freshly-installed",
-                  "Dust or dirt accumulation",
-                  "Snail trail / micro-crack",
-                  "Bird droppings",
-                  "Shading from structures",
-                  "Shading from clouds",
-                  "Rain-soaked surfaces",
-                ].map((label) => (
-                  <Badge key={label} variant="secondary" className="bg-solar-orange/10 text-solar-orange border-solar-orange/30">
-                    {label}
-                  </Badge>
-                ))}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Annotation Format</p>
-                  <p className="text-sm text-foreground">YOLO TXT (class, x, y, w, h) + confidence scoring</p>
-                </div>
-                <div className="rounded-lg border border-border p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Storage Plan</p>
-                  <p className="text-sm text-foreground">Supabase storage bucket with versioned image sets</p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Each frame will be paired with telemetry snapshots so the actionability of detections can be scored against
-                performance metrics (e.g., power loss, temperature rise).
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ListChecks className="w-5 h-5 text-eco-green" />
-              Input Feature Schema
-            </CardTitle>
-            <CardDescription>
-              Numerical signals ingested alongside vision outputs for training and alert prioritization
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-foreground">Visual Inference Outputs</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Detected anomaly class (dust, crack, droppings, shading, water damage).</li>
-                <li>Bounding box coordinates (normalized) and confidence scores.</li>
-                <li>Pixel coverage ratio to estimate affected panel area.</li>
-              </ul>
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-foreground">Telemetry & Environment</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Solar irradiance (W/m²) and ambient temperature (°C).</li>
-                <li>Panel surface temperature, DC string current, and DC voltage.</li>
-                <li>Inverter AC output, battery state-of-charge, and wind speed/humidity.</li>
-              </ul>
-            </div>
-            <div className="space-y-3 md:col-span-2">
-              <p className="text-sm font-semibold text-foreground">Derived KPIs</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Soiling index delta pre/post cleaning events.</li>
-                <li>Performance ratio impact attributed to each detection.</li>
-                <li>Maintenance priority score feeding the action item queue.</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
