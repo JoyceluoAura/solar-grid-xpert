@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { Sun, Zap, TrendingUp, MapPin, Cloud, Activity, BarChart3, Wifi } from "lucide-react";
+import { Sun, Zap, TrendingUp, MapPin, Cloud, Activity, BarChart3, Wifi, Camera, Network, Database } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
 
 const Welcome = () => {
@@ -31,13 +31,13 @@ const Welcome = () => {
         <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto mb-24">
           <div className="space-y-8">
             <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-              Monitor, Predict & Optimize Your{" "}
+              Turn Uncertainty Into{" "}
               <span className="bg-gradient-to-r from-energy-blue via-solar-orange to-eco-green bg-clip-text text-transparent">
-                Solar Energy Systems
+                Energy Reliability
               </span>
             </h1>
             <p className="text-xl text-muted-foreground">
-              From weather forecasts to IoT sensor data — all in one intelligent platform.
+              A smart unified solar management system powered by IoT, 5G, and AI — featuring multi-device connectivity, AI vision detection, and real-time analytics.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
@@ -101,46 +101,46 @@ const Welcome = () => {
           </div>
         </div>
 
-        {/* How It Works Section */}
-        <div className="max-w-6xl mx-auto mb-24">
-          <h2 className="text-4xl font-bold text-center mb-4">How It Works</h2>
-          <p className="text-xl text-muted-foreground text-center mb-16">
-            Three simple steps to optimize your solar energy
-          </p>
+        {/* About SolarGridX Section */}
+        <div className="max-w-7xl mx-auto mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-5xl font-bold mb-6 bg-gradient-to-r from-solar-orange via-energy-blue to-eco-green bg-clip-text text-transparent">
+              About SolarGridX
+            </h2>
+            <p className="text-2xl text-muted-foreground max-w-4xl mx-auto">
+              A smart unified solar management system that turns uncertainty into energy reliability — powered by{" "}
+              <span className="font-semibold text-foreground">IoT, 5G, and AI</span>
+            </p>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="relative">
-              <div className="text-center space-y-4">
-                <div className="w-20 h-20 rounded-2xl gradient-solar flex items-center justify-center mx-auto shadow-elevated">
-                  <MapPin className="w-10 h-10 text-white" />
-                </div>
-                <div className="absolute top-10 left-1/2 w-full h-px bg-gradient-to-r from-solar-orange to-transparent hidden md:block" />
-                <h3 className="text-2xl font-bold">1. Add Your Location</h3>
-                <p className="text-muted-foreground">
-                  Auto-detect via Google Maps or manually enter coordinates for precise analysis
-                </p>
+            <div className="text-center space-y-6 p-8 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border shadow-card hover:shadow-elevated transition-all">
+              <div className="w-24 h-24 rounded-2xl gradient-solar flex items-center justify-center mx-auto shadow-elevated">
+                <Network className="w-12 h-12 text-white" />
               </div>
-            </div>
-
-            <div className="relative">
-              <div className="text-center space-y-4">
-                <div className="w-20 h-20 rounded-2xl gradient-energy flex items-center justify-center mx-auto shadow-elevated">
-                  <Cloud className="w-10 h-10 text-white" />
-                </div>
-                <div className="absolute top-10 left-1/2 w-full h-px bg-gradient-to-r from-energy-blue to-transparent hidden md:block" />
-                <h3 className="text-2xl font-bold">2. Analyze Weather Data</h3>
-                <p className="text-muted-foreground">
-                  View 2-year history and 30-day forecast using AI-powered prediction models
-                </p>
-              </div>
-            </div>
-
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 rounded-2xl gradient-eco flex items-center justify-center mx-auto shadow-elevated">
-                <Wifi className="w-10 h-10 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold">3. Connect Sensors</h3>
+              <h3 className="text-2xl font-bold">Multi-IoT Device Connection</h3>
               <p className="text-muted-foreground">
-                Link your IoT devices for real-time monitoring and smart alerts
+                Connect multiple sensors via MQTT, Modbus, and REST APIs with support for normal, low power, and offline modes to ensure reliable data collection
+              </p>
+            </div>
+
+            <div className="text-center space-y-6 p-8 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border shadow-card hover:shadow-elevated transition-all">
+              <div className="w-24 h-24 rounded-2xl gradient-energy flex items-center justify-center mx-auto shadow-elevated">
+                <Camera className="w-12 h-12 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold">AI Vision Detection</h3>
+              <p className="text-muted-foreground">
+                Automated panel inspection using computer vision to detect cracks, soiling, hotspots, and other defects for proactive maintenance
+              </p>
+            </div>
+
+            <div className="text-center space-y-6 p-8 rounded-2xl bg-gradient-to-br from-card to-muted/20 border border-border shadow-card hover:shadow-elevated transition-all">
+              <div className="w-24 h-24 rounded-2xl gradient-eco flex items-center justify-center mx-auto shadow-elevated">
+                <BarChart3 className="w-12 h-12 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold">Real-time Analytics Powered by AI</h3>
+              <p className="text-muted-foreground">
+                Random Forest Regressor models analyze system health, predict failures, and calculate weather impact with fault probability indicators
               </p>
             </div>
           </div>
@@ -151,36 +151,58 @@ const Welcome = () => {
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold mb-4">Live Demo Preview</h2>
             <p className="text-xl text-muted-foreground">
-              Experience the platform with sample data from Bogor, Indonesia
+              Experience the platform with real-time data from Bogor Solar Site
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Powered by NASA POWER API • Off-grid supported with normal, low power, and offline modes
             </p>
           </div>
           <div className="rounded-2xl border-2 border-border shadow-elevated bg-card overflow-hidden">
             <div className="border-b border-border bg-muted/30 p-4 flex gap-2">
               <div className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">
-                Weather
+                AI Analysis
               </div>
               <div className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted">
-                Sensors
+                IoT Sensors
               </div>
               <div className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted">
-                Performance
+                Visual Monitoring
               </div>
             </div>
-            <div className="p-8 grid md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">Today's Generation</div>
-                <div className="text-3xl font-bold text-solar-orange">142.5 kWh</div>
-                <div className="text-sm text-eco-green">+12.3% vs yesterday</div>
+            <div className="p-8 space-y-6">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-solar-orange/10 to-transparent border border-solar-orange/20">
+                  <div className="text-sm text-muted-foreground">System Health</div>
+                  <div className="text-4xl font-bold text-solar-orange">71.4</div>
+                  <div className="text-sm text-amber-500">Needs attention</div>
+                </div>
+                <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20">
+                  <div className="text-sm text-muted-foreground">kWh Loss (7d)</div>
+                  <div className="text-4xl font-bold text-red-500">521.3</div>
+                  <div className="text-sm text-red-400">37.2% efficiency drop</div>
+                </div>
+                <div className="space-y-2 p-4 rounded-lg bg-gradient-to-br from-energy-blue/10 to-transparent border border-energy-blue/20">
+                  <div className="text-sm text-muted-foreground">AI Confidence</div>
+                  <div className="text-4xl font-bold text-energy-blue">92.5%</div>
+                  <div className="text-sm text-eco-green">High accuracy • 24h data</div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">Weather Status</div>
-                <div className="text-3xl font-bold">🌤️ Clear</div>
-                <div className="text-sm text-muted-foreground">28°C, Low humidity</div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm text-muted-foreground">Next 7 Days Forecast</div>
-                <div className="text-3xl font-bold text-energy-blue">+18%</div>
-                <div className="text-sm text-muted-foreground">Expected increase</div>
+              <div className="p-4 rounded-lg bg-muted/30 border border-border">
+                <div className="text-sm font-semibold mb-3">AI Performance Insights</div>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-500">●</span>
+                    <span>System performing below expected baseline for current weather conditions</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-eco-green">●</span>
+                    <span>Optimal cleaning window detected in next 48 hours - potential +12% efficiency gain</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-energy-blue">●</span>
+                    <span>Weather pattern analysis suggests increased output (+8%) over next 3 days</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -192,21 +214,21 @@ const Welcome = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="p-6 rounded-2xl bg-card shadow-card hover:shadow-elevated transition-all border border-border group">
               <div className="w-14 h-14 rounded-xl gradient-solar flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Cloud className="w-7 h-7 text-white" />
+                <Database className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">🌤️ Weather Intelligence</h3>
+              <h3 className="text-xl font-semibold mb-2">🔮 Random Forest Predictions</h3>
               <p className="text-muted-foreground">
-                2-year historical data and 30-day AI forecasts
+                ML-powered fault probability and battery health indicators
               </p>
             </div>
 
             <div className="p-6 rounded-2xl bg-card shadow-card hover:shadow-elevated transition-all border border-border group">
               <div className="w-14 h-14 rounded-xl gradient-energy flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Wifi className="w-7 h-7 text-white" />
+                <Cloud className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">🔌 IoT Connectivity</h3>
+              <h3 className="text-xl font-semibold mb-2">🌍 NASA POWER API</h3>
               <p className="text-muted-foreground">
-                MQTT, Modbus, and HTTP API integration
+                Real-time irradiance, temperature, and weather data
               </p>
             </div>
 
@@ -214,19 +236,19 @@ const Welcome = () => {
               <div className="w-14 h-14 rounded-xl gradient-eco flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                 <Activity className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">📊 Real-Time Monitoring</h3>
+              <h3 className="text-xl font-semibold mb-2">⚡ Off-Grid Support</h3>
               <p className="text-muted-foreground">
-                Live dashboards with performance metrics
+                Normal, low power, and offline modes with local caching
               </p>
             </div>
 
             <div className="p-6 rounded-2xl bg-card shadow-card hover:shadow-elevated transition-all border border-border group">
               <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-7 h-7 text-white" />
+                <Camera className="w-7 h-7 text-white" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">🧠 Smart Diagnostics</h3>
+              <h3 className="text-xl font-semibold mb-2">👁️ Visual Inspection</h3>
               <p className="text-muted-foreground">
-                AI-powered analysis and recommendations
+                AI-powered defect detection for solar panels
               </p>
             </div>
           </div>
