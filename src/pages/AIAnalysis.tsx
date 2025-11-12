@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Link } from "react-router-dom";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -102,26 +102,6 @@ interface SiteOption {
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-const formatRelativeTime = (iso?: string | null) => {
-  if (!iso) return 'just now';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return 'just now';
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 0) return 'just now';
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'seconds ago';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `${weeks}w ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  const years = Math.floor(days / 365);
-  return `${years}y ago`;
-};
 
 const AIAnalysis = () => {
   const { user } = useAuth();
@@ -145,8 +125,7 @@ const AIAnalysis = () => {
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyRange, setHistoryRange] = useState<string>("30d");
-  const [sensorIssues, setSensorIssues] = useState<SolarIssue[]>([]);
-  const [sensorIssuesLoading, setSensorIssuesLoading] = useState(true);
+
   const selectedSiteDetails = useMemo(() =>
     sites.find((site) => site.id === selectedSite) ?? null,
   [sites, selectedSite]);
@@ -173,11 +152,6 @@ const AIAnalysis = () => {
     }
   }, [user, selectedSite, activeTab]);
 
-  useEffect(() => {
-    if (selectedSiteDetails) {
-      fetchSensorIssues();
-    }
-  }, [selectedSiteDetails]);
 
   const fetchSites = async () => {
     try {
@@ -189,21 +163,14 @@ const AIAnalysis = () => {
 
       if (error) throw error;
 
-      const resolvedSites = data && data.length > 0 ? data : DEMO_SITES;
-      setSites(resolvedSites);
-      if (!data || data.length === 0) {
-        toast('Loaded demo sites for AI analysis');
-      }
-      setSelectedSite((current) => current || (resolvedSites[0]?.id ?? ''));
-      if (resolvedSites.length === 0) {
+
         setLoading(false);
       }
     } catch (error) {
       const message = getErrorMessage(error);
       console.error('Failed to load sites:', message);
       toast.error('Failed to load sites for AI analysis');
-      setSites(DEMO_SITES);
-      setSelectedSite(DEMO_SITES[0]?.id ?? '');
+
     } finally {
       setSitesLoading(false);
     }
@@ -494,7 +461,7 @@ const AIAnalysis = () => {
               fetchOverviewData();
               fetchInsightsData();
               fetchHistoryData();
-              fetchSensorIssues();
+
             }}
             variant="outline"
             className="gap-2"
