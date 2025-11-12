@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { formatIDR } from "@/lib/utils";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -709,7 +710,7 @@ const AIAnalysis = () => {
                         {overviewData.predicted_loss_pct_7d.toFixed(1)}% efficiency drop
                       </Badge>
                       <p className="text-xs text-muted-foreground mt-2 text-center">
-                        Est. cost: ${(overviewData.predicted_loss_kwh_7d * 0.12).toFixed(2)}
+                        Est. cost: {formatIDR(overviewData.predicted_loss_kwh_7d * 1500)}
                       </p>
                     </div>
 
@@ -864,7 +865,7 @@ const AIAnalysis = () => {
                               </span>
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
-                                Est. ROI: <strong className="text-green-600">${(action.impact_kwh * 0.12 * 4).toFixed(2)}/month</strong>
+                                Est. ROI: <strong className="text-green-600">{formatIDR(action.impact_kwh * 1500 * 4)}/month</strong>
                               </span>
                             </div>
                           </div>
@@ -973,7 +974,7 @@ const AIAnalysis = () => {
                         Average efficiency loss: {(solarIssues.reduce((sum, issue) => sum + issue.energy_loss_percent, 0) / solarIssues.length).toFixed(1)}%
                       </p>
                       <p className="text-xs text-orange-600 mt-2">
-                        Est. monthly cost: ${(solarIssues.reduce((sum, issue) => sum + issue.predicted_kwh_loss, 0) * 30 * 0.12).toFixed(2)}
+                        Est. monthly cost: {formatIDR(solarIssues.reduce((sum, issue) => sum + issue.predicted_kwh_loss, 0) * 30 * 1500)}
                       </p>
                     </div>
 
