@@ -16,6 +16,13 @@ import { DatabaseManager } from './database-manager.js';
 import { MQTTClient } from './mqtt-client.js';
 import { HeartbeatMonitor } from './heartbeat-monitor.js';
 import { ModbusReader } from './modbus-reader.js';
+import { yoloAnalyzer } from './yolo-analyzer.js';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -25,6 +32,34 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Configure multer for image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '..', 'uploads');
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'panel-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only JPEG and PNG images are allowed'));
+    }
+  }
+});
 
 // Initialize services
 const dbManager = new DatabaseManager();
@@ -126,6 +161,49 @@ app.post('/api/mode', (req, res) => {
   res.json({ success: true, mode });
 });
 
+// ==================== Image Analysis Endpoints ====================
+
+// Analyze panel image
+app.post('/api/analyze-image', async (req, res) => {
+  try {
+    const { imageId } = req.body;
+
+    if (!imageId) {
+      return res.status(400).json({ error: 'Image ID is required' });
+    }
+
+    console.log(`📸 Starting analysis for image ${imageId}`);
+
+    // Analyze image (mock path for now)
+    const result = await yoloAnalyzer.analyzeImage(imageId, null);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Image analysis error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get defects for an image
+app.get('/api/image/:imageId/defects', async (req, res) => {
+  try {
+    const { imageId } = req.params;
+    const summary = await yoloAnalyzer.getDefectsSummary(imageId);
+
+    if (!summary) {
+      return res.status(404).json({ error: 'Image not found or no defects detected' });
+    }
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error fetching defects:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve uploaded images (static)
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`🚀 IoT Gateway started on port ${PORT}`);
@@ -135,6 +213,10 @@ app.listen(PORT, async () => {
     // Initialize all services
     await gatewayController.initialize();
     console.log('✅ Gateway controller initialized');
+
+    // Initialize YOLO analyzer
+    await yoloAnalyzer.initialize();
+    console.log('✅ YOLO analyzer initialized');
 
     // Start data collection
     await gatewayController.startDataCollection();
@@ -148,6 +230,7 @@ app.listen(PORT, async () => {
     console.log(`   Mode: ${gatewayController.currentMode}`);
     console.log(`   MQTT: ${mqttClient.isConnected() ? 'Connected' : 'Disconnected'}`);
     console.log(`   Database: Ready`);
+    console.log(`   YOLO: ${yoloAnalyzer.mockMode ? 'Mock Mode' : 'Real Inference'}`);
 
   } catch (error) {
     console.error('❌ Initialization error:', error);

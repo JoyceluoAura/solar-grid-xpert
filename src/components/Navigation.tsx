@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Sun, LayoutDashboard, MapPin, Activity, Settings, LogOut, Building2, Radio } from "lucide-react";
+import { Sun, LayoutDashboard, MapPin, Activity, Settings, LogOut, Building2, Radio, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ const Navigation = () => {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/realtime", label: "Real-Time", icon: Radio },
+    { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
     { path: "/organizations", label: "Organizations", icon: Building2 },
     { path: "/weather", label: "Weather", icon: MapPin },
     { path: "/sensors", label: "Sensors", icon: Activity },

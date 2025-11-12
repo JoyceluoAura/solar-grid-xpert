@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import KPICard from "@/components/KPICard";
-import { Zap, Battery, TrendingUp, AlertTriangle, MapPin, Plus } from "lucide-react";
+import { Zap, Battery, TrendingUp, AlertTriangle, MapPin, Plus, XCircle, Camera, ChevronRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,10 +19,24 @@ interface Site {
   system_size_kwp: number;
 }
 
+interface ActionItem {
+  id: string;
+  title: string;
+  description: string;
+  severity: string;
+  status: string;
+  site_name: string;
+  site_location: string;
+  defect_type: string;
+  image_url: string;
+  created_at: string;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sites, setSites] = useState<Site[]>([]);
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Mock data for 30-day forecast
@@ -33,6 +48,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchSites();
+    fetchActionItems();
   }, [user]);
 
   const fetchSites = async () => {
@@ -56,6 +72,33 @@ const Dashboard = () => {
     }
   };
 
+  const fetchActionItems = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch high and critical severity action items
+      const { data, error } = await supabase
+        .from("dashboard_action_items")
+        .select("*")
+        .in("severity", ["critical", "high"])
+        .eq("status", "open")
+        .order("priority", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+
+      setActionItems(data || []);
+    } catch (error: any) {
+      console.error("Failed to load action items:", error);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    return severity === "critical"
+      ? "bg-red-500 text-white"
+      : "bg-orange-500 text-white";
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -71,6 +114,85 @@ const Dashboard = () => {
             Add Site
           </Button>
         </div>
+
+        {/* High Severity Action Items */}
+        {actionItems.length > 0 && (
+          <Card className="border-red-200 bg-red-50 dark:bg-red-950 shadow-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-300">
+                  <XCircle className="w-6 h-6" />
+                  High Priority Action Items
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/panel-analysis")}
+                >
+                  View All
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+              <CardDescription>Defects detected by AI analysis requiring immediate attention</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {actionItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 rounded-lg border bg-white dark:bg-gray-900 hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => navigate("/panel-analysis")}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Badge className={getSeverityColor(item.severity)}>
+                            {item.severity.toUpperCase()}
+                          </Badge>
+                          {item.defect_type && (
+                            <Badge variant="outline" className="capitalize">
+                              {item.defect_type.replace(/_/g, " ")}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <h3 className="font-semibold text-lg mb-1">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+
+                        {item.site_name && (
+                          <div className="flex items-center space-x-4 text-sm">
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-3 h-3" />
+                              <span>{item.site_name}</span>
+                            </div>
+                            {item.image_url && (
+                              <div className="flex items-center space-x-1">
+                                <Camera className="w-3 h-3" />
+                                <span>Image available</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="ml-4">
+                        <AlertTriangle className="w-8 h-8 text-red-500" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {actionItems.length >= 5 && (
+                <div className="mt-4 text-center">
+                  <Button variant="outline" onClick={() => navigate("/panel-analysis")}>
+                    View More Action Items
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Sites List */}
         {sites.length > 0 ? (
