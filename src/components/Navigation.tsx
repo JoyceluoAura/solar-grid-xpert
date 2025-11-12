@@ -11,10 +11,10 @@ const Navigation = () => {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/realtime", label: "Real-Time", icon: Radio },
-    { path: "/panel-analysis", label: "AI Analysis", icon: Camera },
-    { path: "/organizations", label: "Organizations", icon: Building2 },
+    { path: "/visual-monitoring", label: "Visual", icon: Camera },
     { path: "/weather", label: "Weather", icon: MapPin },
     { path: "/sensors", label: "Sensors", icon: Activity },
+    { path: "/ai-analysis", label: "AI Analysis", icon: Activity },
     { path: "/settings", label: "Settings", icon: Settings },
   ];
 

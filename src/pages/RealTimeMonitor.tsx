@@ -32,12 +32,11 @@ import {
 
 interface Site {
   id: string;
-  name: string;
-  location: string;
-  connection_status: "online" | "low_power" | "offline";
-  power_mode: string;
-  battery_level: number;
-  last_heartbeat_at: string;
+  site_name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  system_size_kwp: number;
 }
 
 interface SensorReading {
@@ -160,13 +159,25 @@ const RealTimeMonitor = () => {
 
   const fetchReadings = async (siteId: string) => {
     try {
+      // First get sensors for this site
+      const { data: siteSensors, error: sensorsError } = await supabase
+        .from("sensors")
+        .select("id")
+        .eq("site_id", siteId);
+
+      if (sensorsError) throw sensorsError;
+      
+      const sensorIds = (siteSensors || []).map(s => s.id);
+      
+      if (sensorIds.length === 0) {
+        setReadings([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("sensor_readings")
         .select("*, sensors(sensor_name, sensor_type)")
-        .in(
-          "sensor_id",
-          supabase.from("sensors").select("id").eq("site_id", siteId)
-        )
+        .in("sensor_id", sensorIds)
         .order("timestamp", { ascending: false })
         .limit(20);
 
@@ -283,30 +294,19 @@ const RealTimeMonitor = () => {
           >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
-                <CardTitle className="text-lg">{site.name}</CardTitle>
-                {getStatusIcon(site.connection_status)}
+                <CardTitle className="text-lg">{site.site_name}</CardTitle>
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
               </div>
-              <CardDescription>{site.location}</CardDescription>
+              <CardDescription>{site.address || `${site.latitude}, ${site.longitude}`}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Badge className={getStatusColor(site.connection_status)}>
-                  {site.power_mode || site.connection_status}
+                <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                  Online
                 </Badge>
-
-                {site.battery_level !== null && (
-                  <div className="flex items-center space-x-2">
-                    {getBatteryIcon(site.battery_level)}
-                    <Progress value={site.battery_level} className="flex-1" />
-                    <span className="text-sm font-medium">{site.battery_level}%</span>
-                  </div>
-                )}
-
-                {site.last_heartbeat_at && (
-                  <p className="text-xs text-muted-foreground">
-                    {getTimeSince(site.last_heartbeat_at)}
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  System Size: {site.system_size_kwp} kWp
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -329,7 +329,7 @@ const RealTimeMonitor = () => {
               <CardHeader>
                 <CardTitle>Latest Sensor Readings</CardTitle>
                 <CardDescription>
-                  Real-time data from {selectedSite.name}
+                  Real-time data from {selectedSite.site_name}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -379,7 +379,7 @@ const RealTimeMonitor = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Active Alerts</CardTitle>
-                <CardDescription>Unresolved alerts for {selectedSite.name}</CardDescription>
+                <CardDescription>Unresolved alerts for {selectedSite.site_name}</CardDescription>
               </CardHeader>
               <CardContent>
                 {alerts.length === 0 ? (
@@ -441,7 +441,7 @@ const RealTimeMonitor = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Site Details</CardTitle>
-                <CardDescription>{selectedSite.name}</CardDescription>
+                <CardDescription>{selectedSite.site_name}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid md:grid-cols-2 gap-6">
@@ -449,54 +449,29 @@ const RealTimeMonitor = () => {
                     <div>
                       <h3 className="text-sm font-medium text-muted-foreground">Status</h3>
                       <div className="flex items-center space-x-2 mt-1">
-                        {getStatusIcon(selectedSite.connection_status)}
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
                         <span className="text-lg font-semibold capitalize">
-                          {selectedSite.connection_status.replace("_", " ")}
+                          Online
                         </span>
                       </div>
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Power Mode</h3>
-                      <p className="text-lg font-semibold capitalize mt-1">
-                        {selectedSite.power_mode || "Normal"}
+                      <h3 className="text-sm font-medium text-muted-foreground">System Size</h3>
+                      <p className="text-lg font-semibold mt-1">
+                        {selectedSite.system_size_kwp} kWp
                       </p>
                     </div>
-
-                    {selectedSite.battery_level !== null && (
-                      <div>
-                        <h3 className="text-sm font-medium text-muted-foreground">
-                          Battery Level
-                        </h3>
-                        <div className="flex items-center space-x-2 mt-1">
-                          {getBatteryIcon(selectedSite.battery_level)}
-                          <span className="text-lg font-semibold">
-                            {selectedSite.battery_level}%
-                          </span>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-medium text-muted-foreground">Location</h3>
-                      <p className="text-lg font-semibold mt-1">{selectedSite.location}</p>
+                      <p className="text-lg font-semibold mt-1">{selectedSite.address || "N/A"}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {selectedSite.latitude.toFixed(4)}, {selectedSite.longitude.toFixed(4)}
+                      </p>
                     </div>
-
-                    {selectedSite.last_heartbeat_at && (
-                      <div>
-                        <h3 className="text-sm font-medium text-muted-foreground">
-                          Last Heartbeat
-                        </h3>
-                        <p className="text-lg font-semibold mt-1">
-                          {getTimeSince(selectedSite.last_heartbeat_at)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(selectedSite.last_heartbeat_at).toLocaleString()}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
 

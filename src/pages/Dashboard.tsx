@@ -76,18 +76,33 @@ const Dashboard = () => {
     if (!user) return;
 
     try {
-      // Fetch high and critical severity action items
+      // Fetch high and critical severity alerts as action items
       const { data, error } = await supabase
-        .from("dashboard_action_items")
+        .from("alerts")
         .select("*")
         .in("severity", ["critical", "high"])
-        .eq("status", "open")
-        .order("priority", { ascending: false })
+        .eq("is_resolved", false)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
         .limit(5);
 
       if (error) throw error;
 
-      setActionItems(data || []);
+      // Map alerts to action items format
+      const mappedItems = (data || []).map(alert => ({
+        id: alert.id,
+        title: alert.message,
+        description: alert.message,
+        severity: alert.severity,
+        status: alert.is_resolved ? "closed" : "open",
+        site_name: "Site",
+        site_location: "Location",
+        defect_type: alert.alert_type,
+        image_url: "",
+        created_at: alert.created_at
+      }));
+
+      setActionItems(mappedItems);
     } catch (error: any) {
       console.error("Failed to load action items:", error);
     }

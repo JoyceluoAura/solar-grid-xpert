@@ -16,9 +16,9 @@ import Monitor from "./pages/Monitor";
 import TestingDiagnostics from "./pages/TestingDiagnostics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import Organizations from "./pages/Organizations";
 import RealTimeMonitor from "./pages/RealTimeMonitor";
-import PanelAnalysis from "./pages/PanelAnalysis";
+import VisualMonitoring from "./pages/VisualMonitoring";
+import AIAnalysis from "./pages/AIAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -99,15 +99,6 @@ const App = () => (
               }
             />
             <Route
-              path="/organizations"
-              element={
-                <ProtectedRoute>
-                  <Navigation />
-                  <Organizations />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/realtime"
               element={
                 <ProtectedRoute>
@@ -117,11 +108,20 @@ const App = () => (
               }
             />
             <Route
-              path="/panel-analysis"
+              path="/visual-monitoring"
               element={
                 <ProtectedRoute>
                   <Navigation />
-                  <PanelAnalysis />
+                  <VisualMonitoring />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ai-analysis"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <AIAnalysis />
                 </ProtectedRoute>
               }
             />
