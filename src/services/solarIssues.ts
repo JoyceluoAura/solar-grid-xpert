@@ -18,25 +18,13 @@ export type IssueType =
 
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
-const createPoster = (title: string, subtitle: string, gradientFrom: string, gradientTo: string) => {
-  const svg = `
-    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
-      <defs>
-        <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'>
-          <stop offset='0%' stop-color='${gradientFrom}' />
-          <stop offset='100%' stop-color='${gradientTo}' />
-        </linearGradient>
-      </defs>
-      <rect width='400' height='300' fill='url(#grad)' rx='24' ry='24'/>
-      <g fill='rgba(255,255,255,0.85)'>
-        <text x='32' y='150' font-size='42' font-weight='700' font-family='Inter,sans-serif'>${title}</text>
-        <text x='32' y='198' font-size='22' font-weight='500' font-family='Inter,sans-serif'>${subtitle}</text>
-      </g>
+
     </svg>
   `;
 
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
+
 
 export interface SolarIssue {
   id: string;
@@ -51,6 +39,8 @@ export interface SolarIssue {
   // Video and visual
   videoUrl: string;
   posterUrl: string;
+  imageUrl: string;
+  history: SolarIssueHistoryFrame[];
 
   // AI metrics
   confidence: number;           // 0-1 confidence score
@@ -90,6 +80,13 @@ interface IssueMapping {
   energy_loss_range: [number, number]; // min, max %
   visual_effect: string;
   recommendations: string[];
+  accent: { from: string; to: string };
+  historyTimeline: Array<{
+    label: string;
+    hoursAgo: number;
+    notes: string;
+    severity?: SeverityLevel;
+  }>;
 }
 
 class SolarIssueService {
@@ -111,7 +108,13 @@ class SolarIssueService {
         'Check for cell bypass diode failure',
         'Verify string voltage and current',
         'Consider panel replacement if severe'
-      ]
+      ],
+      accent: { from: '#f97316', to: '#facc15' },
+      historyTimeline: [
+        { label: '24h ago', hoursAgo: 24, notes: 'Initial mild heating visible', severity: 'high' },
+        { label: '12h ago', hoursAgo: 12, notes: 'Hotspot expanding across cells', severity: 'high' },
+        { label: '1h ago', hoursAgo: 1, notes: 'Critical temperature spike detected', severity: 'critical' },
+      ],
     },
     crack: {
       type: 'crack',
@@ -126,7 +129,13 @@ class SolarIssueService {
         'Monitor for crack expansion',
         'Check warranty coverage',
         'Plan panel replacement'
-      ]
+      ],
+      accent: { from: '#7c3aed', to: '#ec4899' },
+      historyTimeline: [
+        { label: '3d ago', hoursAgo: 72, notes: 'Hairline fracture detected', severity: 'medium' },
+        { label: '24h ago', hoursAgo: 24, notes: 'Crack spreading across cells', severity: 'high' },
+        { label: 'Now', hoursAgo: 0.5, notes: 'Structural integrity compromised', severity: 'high' },
+      ],
     },
     soiling: {
       type: 'soiling',
@@ -141,7 +150,13 @@ class SolarIssueService {
         'Consider automated cleaning system',
         'Check local weather patterns',
         'Implement preventive maintenance'
-      ]
+      ],
+      accent: { from: '#b45309', to: '#f59e0b' },
+      historyTimeline: [
+        { label: '7d ago', hoursAgo: 168, notes: 'Light debris detected on upper cells', severity: 'low' },
+        { label: '2d ago', hoursAgo: 48, notes: 'Bird droppings covering cell junction', severity: 'medium' },
+        { label: 'Today', hoursAgo: 2, notes: 'Generation loss exceeds 12%', severity: 'medium' },
+      ],
     },
     delamination: {
       type: 'delamination',
@@ -156,7 +171,13 @@ class SolarIssueService {
         'Check warranty status',
         'Monitor progression rate',
         'Plan panel replacement'
-      ]
+      ],
+      accent: { from: '#0ea5e9', to: '#22d3ee' },
+      historyTimeline: [
+        { label: '10d ago', hoursAgo: 240, notes: 'Minor delamination around edges', severity: 'medium' },
+        { label: '3d ago', hoursAgo: 72, notes: 'Encapsulant bubbling expanding', severity: 'high' },
+        { label: 'Now', hoursAgo: 1, notes: 'Moisture ingress imminent', severity: 'high' },
+      ],
     },
     shadow: {
       type: 'shadow',
@@ -171,7 +192,13 @@ class SolarIssueService {
         'Trim vegetation if applicable',
         'Consider panel relocation',
         'Install bypass diodes'
-      ]
+      ],
+      accent: { from: '#1d4ed8', to: '#0ea5e9' },
+      historyTimeline: [
+        { label: '2d ago', hoursAgo: 48, notes: 'Morning shading from tree growth', severity: 'medium' },
+        { label: '12h ago', hoursAgo: 12, notes: 'Cloud bank causes intermittent losses', severity: 'medium' },
+        { label: 'Now', hoursAgo: 0.5, notes: 'Heavy shading reducing string output', severity: 'medium' },
+      ],
     },
     snow: {
       type: 'snow',
@@ -186,7 +213,13 @@ class SolarIssueService {
         'Consider snow removal if urgent',
         'Check tilt angle optimization',
         'Install heating elements for frequent snow'
-      ]
+      ],
+      accent: { from: '#94a3b8', to: '#38bdf8' },
+      historyTimeline: [
+        { label: '18h ago', hoursAgo: 18, notes: 'Light dusting accumulating', severity: 'low' },
+        { label: '6h ago', hoursAgo: 6, notes: 'Partial snow cover on lower string', severity: 'medium' },
+        { label: 'Now', hoursAgo: 0.5, notes: 'Thick snow layer blocking output', severity: 'medium' },
+      ],
     },
     none: {
       type: 'none',
@@ -201,7 +234,13 @@ class SolarIssueService {
         'Maintain regular cleaning schedule',
         'Keep up preventive maintenance',
         'Review performance quarterly'
-      ]
+      ],
+      accent: { from: '#22c55e', to: '#4ade80' },
+      historyTimeline: [
+        { label: '7d ago', hoursAgo: 168, notes: 'All strings nominal', severity: 'info' },
+        { label: '24h ago', hoursAgo: 24, notes: 'Healthy production trend', severity: 'info' },
+        { label: 'Now', hoursAgo: 0.5, notes: 'No alerts detected', severity: 'info' },
+      ],
     }
   };
 
@@ -269,6 +308,16 @@ class SolarIssueService {
   ): SolarIssue {
     const mapping = this.issueMapping[issueType];
     const detectedAt = new Date();
+
+    const { overlay: liveOverlay, glow: liveGlow } = createOverlay(issueType, 0);
+    const imageUrl = buildPanelSvg({
+      title: mapping.visual_effect,
+      subtitle: `${location} • ${mapping.description}`,
+      accentFrom: mapping.accent.from,
+      accentTo: mapping.accent.to,
+      overlay: liveOverlay,
+      glow: liveGlow,
+    });
 
     // Calculate if issue is "live" (< 10 minutes old)
     const isLive = true; // For demo, always live
@@ -358,6 +407,25 @@ class SolarIssueService {
       location,
       videoUrl: mapping.videoUrl,
       posterUrl: mapping.posterUrl,
+      imageUrl,
+      history: mapping.historyTimeline.map((entry, idx) => {
+        const { overlay, glow } = createOverlay(issueType, idx + 1);
+        const timestamp = new Date(detectedAt.getTime() - entry.hoursAgo * 60 * 60 * 1000);
+        return {
+          timestamp: timestamp.toISOString(),
+          label: entry.label,
+          notes: entry.notes,
+          severity: entry.severity ?? mapping.typical_severity,
+          imageUrl: buildPanelSvg({
+            title: mapping.visual_effect,
+            subtitle: entry.notes,
+            accentFrom: mapping.accent.from,
+            accentTo: mapping.accent.to,
+            overlay,
+            glow,
+          }),
+        };
+      }),
       confidence,
       energy_loss_percent: Math.round(energyLoss * 10) / 10,
       predicted_kwh_loss: Math.round(predictedKwhLoss * 10) / 10,
