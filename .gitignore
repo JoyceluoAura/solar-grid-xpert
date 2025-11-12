@@ -16,6 +16,8 @@ dist-ssr
 iot-gateway/data/*.db
 iot-gateway/data/*.db-journal
 iot-gateway/.env
+iot-gateway/uploads/*
+!iot-gateway/uploads/.gitkeep
 
 # Editor directories and files
 .vscode/*

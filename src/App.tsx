@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Organizations from "./pages/Organizations";
 import RealTimeMonitor from "./pages/RealTimeMonitor";
+import PanelAnalysis from "./pages/PanelAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,15 @@ const App = () => (
                 <ProtectedRoute>
                   <Navigation />
                   <RealTimeMonitor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/panel-analysis"
+              element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <PanelAnalysis />
                 </ProtectedRoute>
               }
             />
