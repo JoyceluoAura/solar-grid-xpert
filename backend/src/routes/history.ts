@@ -1,39 +1,8 @@
 import express, { Request, Response } from 'express';
-import axios from 'axios';
+import { parseSiteParams, fetchSiteTelemetry, generateMockTelemetry, TelemetryPoint } from './utils/telemetry';
 
 const router = express.Router();
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
-
-const generateHistoricalData = (days: number = 30) => {
-  const series = [];
-  const now = new Date();
-
-  for (let i = days * 24; i >= 0; i--) {
-    const ts = new Date(now.getTime() - i * 60 * 60 * 1000);
-    const hour = ts.getHours();
-
-    // Solar generation curve
-    const solarFactor = Math.max(0, Math.sin(((hour - 6) / 12) * Math.PI));
-    const ghi = 1000 * solarFactor * (0.9 + Math.random() * 0.2);
-    const ac_kw = 100 * solarFactor * (0.85 + Math.random() * 0.3);
-
-    // Modeled output (ideal conditions)
-    const modeled_kw = 100 * solarFactor * 0.95;
-
-    // Performance ratio
-    const pr = ghi > 100 ? (ac_kw / (ghi * 0.1)) : null;
-
-    series.push({
-      ts: ts.toISOString(),
-      ghi: Math.round(Math.max(0, ghi)),
-      ac_kw: Math.round(Math.max(0, ac_kw) * 100) / 100,
-      modeled_kw: Math.round(modeled_kw * 100) / 100,
-      pr: pr ? Math.round(Math.min(1, Math.max(0, pr)) * 100) / 100 : null
-    });
-  }
-
-  return series;
-};
 
 const generateAnomalies = (series: any[]) => {
   const anomalies = [];
@@ -118,6 +87,7 @@ router.get('/history', async (req: Request, res: Response) => {
   try {
     const siteId = req.query.site_id as string || 'default';
     const range = req.query.range as string || '30d';
+    const { latitude, longitude, systemCapacityKw } = parseSiteParams(req);
 
     console.log(`[History] Fetching history for site: ${siteId}, range: ${range}`);
 
@@ -131,7 +101,30 @@ router.get('/history', async (req: Request, res: Response) => {
     const days = daysMap[range] || 30;
 
     // 1. Generate historical time series data
-    const series = generateHistoricalData(days);
+    let telemetry: TelemetryPoint[];
+    try {
+      telemetry = await fetchSiteTelemetry({
+        latitude,
+        longitude,
+        systemCapacityKw,
+        hours: days * 24,
+      });
+    } catch (error: any) {
+      console.error(`[History] Telemetry fetch failed: ${error.message}`);
+      telemetry = generateMockTelemetry(systemCapacityKw, days);
+    }
+
+    const series = telemetry.map((point) => {
+      const modeled_kw = Math.max(0, (point.ghi_wm2 / 1000) * systemCapacityKw * 0.9);
+      const pr = modeled_kw > 0.1 ? Math.min(1, Math.max(0, point.ac_kw / modeled_kw)) : null;
+      return {
+        ts: point.ts,
+        ghi: Math.round(point.ghi_wm2),
+        ac_kw: Math.round(point.ac_kw * 100) / 100,
+        modeled_kw: Math.round(modeled_kw * 100) / 100,
+        pr: pr ? Math.round(pr * 100) / 100 : null,
+      };
+    });
 
     // 2. Detect anomalies in the time series
     const anomalies = generateAnomalies(series);

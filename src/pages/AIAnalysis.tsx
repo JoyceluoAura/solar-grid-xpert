@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -13,6 +15,8 @@ import {
   Activity,
   Target,
   Zap,
+  Sun,
+  Thermometer,
   AlertCircle,
   Clock,
   Wrench,
@@ -37,8 +41,28 @@ import {
   Legend
 } from "recharts";
 import axios from "axios";
+import { weatherDataService } from "@/services/weatherData";
+import { solarIssueService, SolarIssue } from "@/services/solarIssues";
+import { SolarWeatherData } from "@/services/nasaPower";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+
+const DEMO_SITES: SiteOption[] = [
+  {
+    id: 'DEMO-JKT',
+    site_name: 'Jakarta HQ Rooftop',
+    latitude: -6.2088,
+    longitude: 106.8456,
+    system_size_kwp: 120,
+  },
+  {
+    id: 'DEMO-SGP',
+    site_name: 'Singapore Data Center',
+    latitude: 1.3521,
+    longitude: 103.8198,
+    system_size_kwp: 95,
+  },
+];
 
 // Type definitions
 interface OverviewData {
@@ -67,10 +91,45 @@ interface HistoryData {
   kpis: { mtbf_hours: number; mttr_hours: number; recovered_kwh_30d: number };
 }
 
+interface SiteOption {
+  id: string;
+  site_name: string;
+  latitude: number;
+  longitude: number;
+  system_size_kwp: number | null;
+}
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+const formatRelativeTime = (iso?: string | null) => {
+  if (!iso) return 'just now';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'just now';
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return 'just now';
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'seconds ago';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(days / 365);
+  return `${years}y ago`;
+};
+
 const AIAnalysis = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [sites, setSites] = useState<SiteOption[]>([]);
+  const [sitesLoading, setSitesLoading] = useState(true);
+  const [selectedSite, setSelectedSite] = useState<string>("");
 
   // Overview state
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
@@ -86,28 +145,97 @@ const AIAnalysis = () => {
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyRange, setHistoryRange] = useState<string>("30d");
+  const [sensorIssues, setSensorIssues] = useState<SolarIssue[]>([]);
+  const [sensorIssuesLoading, setSensorIssuesLoading] = useState(true);
+  const selectedSiteDetails = useMemo(() =>
+    sites.find((site) => site.id === selectedSite) ?? null,
+  [sites, selectedSite]);
 
   useEffect(() => {
     if (user) {
-      fetchOverviewData();
-      fetchInsightsData();
-      fetchHistoryData();
+      fetchSites();
     }
   }, [user]);
 
   useEffect(() => {
-    if (user && activeTab === "history") {
+    if (user && selectedSite && activeTab === "history") {
       fetchHistoryData();
     }
-  }, [historyRange, user, activeTab]);
+  }, [historyRange, user, activeTab, selectedSite]);
+
+  useEffect(() => {
+    if (user && selectedSite) {
+      fetchOverviewData();
+      fetchInsightsData();
+      if (activeTab === "history") {
+        fetchHistoryData();
+      }
+    }
+  }, [user, selectedSite, activeTab]);
+
+  useEffect(() => {
+    if (selectedSiteDetails) {
+      fetchSensorIssues();
+    }
+  }, [selectedSiteDetails]);
+
+  const fetchSites = async () => {
+    try {
+      setSitesLoading(true);
+      const { data, error } = await supabase
+        .from('sites')
+        .select('id, site_name, latitude, longitude, system_size_kwp')
+        .order('site_name');
+
+      if (error) throw error;
+
+      const resolvedSites = data && data.length > 0 ? data : DEMO_SITES;
+      setSites(resolvedSites);
+      if (!data || data.length === 0) {
+        toast('Loaded demo sites for AI analysis');
+      }
+      setSelectedSite((current) => current || (resolvedSites[0]?.id ?? ''));
+      if (resolvedSites.length === 0) {
+        setLoading(false);
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error('Failed to load sites:', message);
+      toast.error('Failed to load sites for AI analysis');
+      setSites(DEMO_SITES);
+      setSelectedSite(DEMO_SITES[0]?.id ?? '');
+    } finally {
+      setSitesLoading(false);
+    }
+  };
+
+  const buildSiteQuery = (extraParams?: Record<string, string>) => {
+    if (!selectedSiteDetails) return null;
+    const params = new URLSearchParams({
+      site_id: selectedSiteDetails.id,
+      lat: selectedSiteDetails.latitude.toString(),
+      lon: selectedSiteDetails.longitude.toString(),
+      capacity_kw: ((selectedSiteDetails.system_size_kwp ?? 100)).toString(),
+    });
+
+    if (extraParams) {
+      Object.entries(extraParams).forEach(([key, value]) => params.append(key, value));
+    }
+
+    return params.toString();
+  };
 
   const fetchOverviewData = async () => {
+    if (!selectedSiteDetails) return;
     try {
       setOverviewLoading(true);
-      const response = await axios.get(`${BACKEND_URL}/api/ai/overview?site_id=default`);
+      const query = buildSiteQuery();
+      if (!query) return;
+      const response = await axios.get(`${BACKEND_URL}/api/ai/overview?${query}`);
       setOverviewData(response.data);
-    } catch (error: any) {
-      console.error("Failed to fetch overview:", error);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch overview:", message);
       toast.error("Failed to load AI overview data");
       // Set mock data as fallback
       setOverviewData({
@@ -134,12 +262,16 @@ const AIAnalysis = () => {
   };
 
   const fetchInsightsData = async () => {
+    if (!selectedSiteDetails) return;
     try {
       setInsightsLoading(true);
-      const response = await axios.get(`${BACKEND_URL}/api/ai/insights?site_id=default`);
+      const query = buildSiteQuery();
+      if (!query) return;
+      const response = await axios.get(`${BACKEND_URL}/api/ai/insights?${query}`);
       setInsights(response.data.insights);
-    } catch (error: any) {
-      console.error("Failed to fetch insights:", error);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch insights:", message);
       toast.error("Failed to load AI insights");
       // Set mock insights as fallback
       setInsights([
@@ -169,15 +301,76 @@ const AIAnalysis = () => {
   };
 
   const fetchHistoryData = async () => {
+    if (!selectedSiteDetails) return;
     try {
       setHistoryLoading(true);
-      const response = await axios.get(`${BACKEND_URL}/api/ai/history?site_id=default&range=${historyRange}`);
+      const query = buildSiteQuery({ range: historyRange });
+      if (!query) return;
+      const response = await axios.get(`${BACKEND_URL}/api/ai/history?${query}`);
       setHistoryData(response.data);
-    } catch (error: any) {
-      console.error("Failed to fetch history:", error);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch history:", message);
       toast.error("Failed to load history data");
+      // Provide fallback history so charts remain populated
+      const now = new Date();
+      const series = Array.from({ length: 168 }, (_, idx) => {
+        const timestamp = new Date(now.getTime() - (167 - idx) * 60 * 60 * 1000);
+        const base = 75 + Math.sin(idx / 12) * 20;
+        return {
+          ts: timestamp.toISOString(),
+          ghi: 600 + Math.sin(idx / 8) * 180 + (idx % 5) * 12,
+          ac_kw: Math.max(0, base + Math.sin(idx / 4) * 18),
+          modeled_kw: Math.max(0, base + 5),
+          pr: 0.78 + Math.sin(idx / 36) * 0.05,
+        };
+      });
+      setHistoryData({
+        series,
+        anomalies: [],
+        kpis: { mtbf_hours: 420, mttr_hours: 5.6, recovered_kwh_30d: 820 },
+      });
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchSensorIssues = async () => {
+    if (!selectedSiteDetails) return;
+    try {
+      setSensorIssuesLoading(true);
+      const samples = await weatherDataService.fetchWeatherData(
+        selectedSiteDetails.latitude,
+        selectedSiteDetails.longitude,
+        4
+      );
+      const latestSample = samples[samples.length - 1];
+      const weather: SolarWeatherData = {
+        irradiance: latestSample.ghi_wm2,
+        temperature: latestSample.air_temp_c,
+        humidity: 62,
+        wind_speed: latestSample.wind_ms ?? 3,
+        cloud_cover: latestSample.ghi_wm2 < 750 ? 45 : 18,
+        pressure: 101.2,
+        timestamp: latestSample.ts,
+      };
+      const generated = solarIssueService.generateSiteIssues(selectedSiteDetails.id, weather, 6);
+      setSensorIssues(generated);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error('Failed to load sensor issues for AI summary:', message);
+      const fallbackWeather: SolarWeatherData = {
+        irradiance: 820,
+        temperature: 31,
+        humidity: 58,
+        wind_speed: 2.5,
+        cloud_cover: 28,
+        pressure: 101.3,
+        timestamp: new Date().toISOString(),
+      };
+      setSensorIssues(solarIssueService.generateSiteIssues(selectedSiteDetails?.id ?? 'DEMO', fallbackWeather, 6));
+    } finally {
+      setSensorIssuesLoading(false);
     }
   };
 
@@ -192,6 +385,21 @@ const AIAnalysis = () => {
     return priority === "high"
       ? "bg-red-500/10 text-red-600 border-red-500/20"
       : "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
+  };
+
+  const getSeverityBadgeClass = (severity: string) => {
+    switch (severity) {
+      case 'critical':
+        return 'bg-red-500 text-white';
+      case 'high':
+        return 'bg-orange-500 text-white';
+      case 'medium':
+        return 'bg-yellow-500 text-white';
+      case 'low':
+        return 'bg-blue-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
+    }
   };
 
   const getFilteredInsights = () => {
@@ -216,12 +424,39 @@ const AIAnalysis = () => {
     return filtered;
   };
 
+  const criticalSensorIssues = useMemo(
+    () => sensorIssues.filter((issue) => issue.severity === 'critical' || issue.severity === 'high'),
+    [sensorIssues]
+  );
+
+  const totalCriticalLoss = useMemo(
+    () =>
+      criticalSensorIssues.reduce((sum, issue) => sum + issue.predicted_kwh_loss, 0),
+    [criticalSensorIssues]
+  );
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-muted-foreground">Loading AI analysis data...</div>
         </div>
+      </div>
+    );
+  }
+
+  if (!loading && !sitesLoading && sites.length === 0) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="shadow-card">
+          <CardContent className="py-12 text-center space-y-3">
+            <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground" />
+            <h2 className="text-xl font-semibold">No sites connected yet</h2>
+            <p className="text-sm text-muted-foreground">
+              Add a site with latitude, longitude, and system capacity to unlock AI-driven insights.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -237,19 +472,49 @@ const AIAnalysis = () => {
             AI-powered insights and predictive analytics for your solar installation
           </p>
         </div>
-        <Button
-          onClick={() => {
-            fetchOverviewData();
-            fetchInsightsData();
-            fetchHistoryData();
-          }}
-          variant="outline"
-          className="gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh All
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select
+            value={selectedSite}
+            onValueChange={setSelectedSite}
+            disabled={sitesLoading || sites.length === 0}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder={sitesLoading ? "Loading sites..." : "Select site"} />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.map((site) => (
+                <SelectItem key={site.id} value={site.id}>
+                  {site.site_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => {
+              fetchOverviewData();
+              fetchInsightsData();
+              fetchHistoryData();
+              fetchSensorIssues();
+            }}
+            variant="outline"
+            className="gap-2"
+            disabled={!selectedSiteDetails}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh All
+          </Button>
+        </div>
       </div>
+      {selectedSiteDetails && (
+        <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-4">
+          <span className="font-medium text-foreground">Site:</span>
+          <span>{selectedSiteDetails.site_name}</span>
+          <span>•</span>
+          <span>Lat {selectedSiteDetails.latitude.toFixed(3)}°, Lon {selectedSiteDetails.longitude.toFixed(3)}°</span>
+          <span>•</span>
+          <span>Capacity {selectedSiteDetails.system_size_kwp ?? 100} kWp</span>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-2xl">
@@ -405,6 +670,92 @@ const AIAnalysis = () => {
                       </div>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Sensor-driven Critical Alerts */}
+              <Card className="shadow-card border-red-200/60">
+                <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-red-500" />
+                      Critical Sensor Alerts
+                    </CardTitle>
+                    <CardDescription>High-priority actions derived from live sensor & visual diagnostics</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/20">
+                      {criticalSensorIssues.length} active
+                    </Badge>
+                    <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-600 border-orange-500/20">
+                      {totalCriticalLoss.toFixed(1)} kWh/day at risk
+                    </Badge>
+                    <Button size="sm" variant="secondary" asChild className="gap-2">
+                      <Link to="/sensors">
+                        Go to Sensors
+                        <ArrowUpRight className="w-4 h-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {sensorIssuesLoading ? (
+                    <div className="text-sm text-muted-foreground">Loading sensor intelligence...</div>
+                  ) : criticalSensorIssues.length > 0 ? (
+                    <div className="space-y-3">
+                      {criticalSensorIssues.map((issue) => (
+                        <div
+                          key={issue.id}
+                          className="flex gap-3 p-3 border border-border/80 rounded-lg bg-gradient-to-br from-red-50/70 to-orange-50/50"
+                        >
+                          <img
+                            src={issue.imageUrl}
+                            alt={`${issue.name} alert visual`}
+                            className="w-24 h-20 object-cover rounded-md border"
+                          />
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="font-semibold text-sm text-foreground">{issue.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {issue.location} • Detected {formatRelativeTime(issue.detected_at)}
+                                </p>
+                              </div>
+                              <Badge className={`${getSeverityBadgeClass(issue.severity)} px-2 py-0.5`}>
+                                {issue.severity.toUpperCase()}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1 text-orange-600">
+                                <Zap className="w-3 h-3" />
+                                Loss {issue.predicted_kwh_loss.toFixed(1)} kWh/day
+                              </span>
+                              <span className="flex items-center gap-1 text-amber-600">
+                                <Sun className="w-3 h-3" />
+                                {issue.sensor_data.irradiance.toFixed(0)} W/m²
+                              </span>
+                              <span className="flex items-center gap-1 text-sky-600">
+                                <Thermometer className="w-3 h-3" />
+                                {issue.sensor_data.panel_temp.toFixed(1)}°C
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {issue.recommended_actions.slice(0, 2).map((action, idx) => (
+                                <p key={idx} className="text-xs text-muted-foreground flex items-start gap-2">
+                                  <ArrowUpRight className="w-3 h-3 mt-[2px] text-red-500" />
+                                  {action}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      No critical or high-priority alerts detected from connected sensors.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </>
