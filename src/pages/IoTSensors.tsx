@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
 import { nasaPowerService, SolarWeatherData } from "@/services/nasaPower";
 import { solarIssueService, SolarIssue } from "@/services/solarIssues";
+import { weatherDataService, SolarSample } from "@/services/weatherData";
 
 const IoTSensors = () => {
   const { user } = useAuth();
@@ -127,11 +128,24 @@ const IoTSensors = () => {
     try {
       setIssuesLoading(true);
 
-      // Fetch weather data from NASA POWER
-      const weather = await nasaPowerService.fetchWeatherData({
-        latitude: siteParams.lat,
-        longitude: siteParams.lon,
-      });
+      // Fetch normalized weather data from Solcast/NSRDB (prevents negative values)
+      const weatherSamples = await weatherDataService.fetchWeatherData(
+        siteParams.lat,
+        siteParams.lon,
+        1 // Just get the latest hour
+      );
+
+      // Convert normalized data to format expected by solarIssueService
+      const latestSample = weatherSamples[weatherSamples.length - 1];
+      const weather: SolarWeatherData = {
+        irradiance: latestSample.ghi_wm2, // Normalized 0-1400 W/m²
+        temperature: latestSample.air_temp_c, // Normalized -40 to 85°C
+        humidity: 65, // Default value
+        wind_speed: latestSample.wind_ms || 2, // Normalized 0-80 m/s
+        cloud_cover: latestSample.ghi_wm2 < 800 ? 30 : 10, // Estimate from irradiance
+        pressure: 101.3, // Standard pressure
+        timestamp: latestSample.ts,
+      };
       setWeatherData(weather);
 
       // Generate solar issues based on weather context
@@ -139,7 +153,7 @@ const IoTSensors = () => {
       setSolarIssues(issues);
 
       setVisualLastUpdated(new Date());
-      console.log(`✅ Updated ${issues.length} solar issues with weather context`);
+      console.log(`✅ Updated ${issues.length} solar issues (source: ${latestSample.source})`);
     } catch (error) {
       console.error('Error fetching weather and issues:', error);
     } finally {
