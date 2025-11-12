@@ -17,7 +17,7 @@ import TestingDiagnostics from "./pages/TestingDiagnostics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Organizations from "./pages/Organizations";
-import PanelAnalysis from "./pages/PanelAnalysis";
+import PanelAnalysis from "./pages/AIAnalysis";
 
 const queryClient = new QueryClient();
 
