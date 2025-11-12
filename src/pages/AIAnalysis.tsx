@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -67,10 +68,24 @@ interface HistoryData {
   kpis: { mtbf_hours: number; mttr_hours: number; recovered_kwh_30d: number };
 }
 
+interface SiteOption {
+  id: string;
+  site_name: string;
+  latitude: number;
+  longitude: number;
+  system_size_kwp: number | null;
+}
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
 const AIAnalysis = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [sites, setSites] = useState<SiteOption[]>([]);
+  const [sitesLoading, setSitesLoading] = useState(true);
+  const [selectedSite, setSelectedSite] = useState<string>("");
 
   // Overview state
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
@@ -86,28 +101,84 @@ const AIAnalysis = () => {
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyRange, setHistoryRange] = useState<string>("30d");
+  const selectedSiteDetails = useMemo(() =>
+    sites.find((site) => site.id === selectedSite) ?? null,
+  [sites, selectedSite]);
 
   useEffect(() => {
     if (user) {
-      fetchOverviewData();
-      fetchInsightsData();
-      fetchHistoryData();
+      fetchSites();
     }
   }, [user]);
 
   useEffect(() => {
-    if (user && activeTab === "history") {
+    if (user && selectedSite && activeTab === "history") {
       fetchHistoryData();
     }
-  }, [historyRange, user, activeTab]);
+  }, [historyRange, user, activeTab, selectedSite]);
+
+  useEffect(() => {
+    if (user && selectedSite) {
+      fetchOverviewData();
+      fetchInsightsData();
+      if (activeTab === "history") {
+        fetchHistoryData();
+      }
+    }
+  }, [user, selectedSite, activeTab]);
+
+  const fetchSites = async () => {
+    try {
+      setSitesLoading(true);
+      const { data, error } = await supabase
+        .from('sites')
+        .select('id, site_name, latitude, longitude, system_size_kwp')
+        .order('site_name');
+
+      if (error) throw error;
+
+      setSites(data || []);
+      if (data && data.length > 0) {
+        setSelectedSite((current) => current || data[0].id);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error('Failed to load sites:', message);
+      toast.error('Failed to load sites for AI analysis');
+    } finally {
+      setSitesLoading(false);
+    }
+  };
+
+  const buildSiteQuery = (extraParams?: Record<string, string>) => {
+    if (!selectedSiteDetails) return null;
+    const params = new URLSearchParams({
+      site_id: selectedSiteDetails.id,
+      lat: selectedSiteDetails.latitude.toString(),
+      lon: selectedSiteDetails.longitude.toString(),
+      capacity_kw: ((selectedSiteDetails.system_size_kwp ?? 100)).toString(),
+    });
+
+    if (extraParams) {
+      Object.entries(extraParams).forEach(([key, value]) => params.append(key, value));
+    }
+
+    return params.toString();
+  };
 
   const fetchOverviewData = async () => {
+    if (!selectedSiteDetails) return;
     try {
       setOverviewLoading(true);
-      const response = await axios.get(`${BACKEND_URL}/api/ai/overview?site_id=default`);
+      const query = buildSiteQuery();
+      if (!query) return;
+      const response = await axios.get(`${BACKEND_URL}/api/ai/overview?${query}`);
       setOverviewData(response.data);
-    } catch (error: any) {
-      console.error("Failed to fetch overview:", error);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch overview:", message);
       toast.error("Failed to load AI overview data");
       // Set mock data as fallback
       setOverviewData({
@@ -134,12 +205,16 @@ const AIAnalysis = () => {
   };
 
   const fetchInsightsData = async () => {
+    if (!selectedSiteDetails) return;
     try {
       setInsightsLoading(true);
-      const response = await axios.get(`${BACKEND_URL}/api/ai/insights?site_id=default`);
+      const query = buildSiteQuery();
+      if (!query) return;
+      const response = await axios.get(`${BACKEND_URL}/api/ai/insights?${query}`);
       setInsights(response.data.insights);
-    } catch (error: any) {
-      console.error("Failed to fetch insights:", error);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch insights:", message);
       toast.error("Failed to load AI insights");
       // Set mock insights as fallback
       setInsights([
@@ -169,12 +244,16 @@ const AIAnalysis = () => {
   };
 
   const fetchHistoryData = async () => {
+    if (!selectedSiteDetails) return;
     try {
       setHistoryLoading(true);
-      const response = await axios.get(`${BACKEND_URL}/api/ai/history?site_id=default&range=${historyRange}`);
+      const query = buildSiteQuery({ range: historyRange });
+      if (!query) return;
+      const response = await axios.get(`${BACKEND_URL}/api/ai/history?${query}`);
       setHistoryData(response.data);
-    } catch (error: any) {
-      console.error("Failed to fetch history:", error);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch history:", message);
       toast.error("Failed to load history data");
     } finally {
       setHistoryLoading(false);
@@ -226,6 +305,22 @@ const AIAnalysis = () => {
     );
   }
 
+  if (!loading && !sitesLoading && sites.length === 0) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="shadow-card">
+          <CardContent className="py-12 text-center space-y-3">
+            <AlertCircle className="w-10 h-10 mx-auto text-muted-foreground" />
+            <h2 className="text-xl font-semibold">No sites connected yet</h2>
+            <p className="text-sm text-muted-foreground">
+              Add a site with latitude, longitude, and system capacity to unlock AI-driven insights.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -237,19 +332,48 @@ const AIAnalysis = () => {
             AI-powered insights and predictive analytics for your solar installation
           </p>
         </div>
-        <Button
-          onClick={() => {
-            fetchOverviewData();
-            fetchInsightsData();
-            fetchHistoryData();
-          }}
-          variant="outline"
-          className="gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh All
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select
+            value={selectedSite}
+            onValueChange={setSelectedSite}
+            disabled={sitesLoading || sites.length === 0}
+          >
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder={sitesLoading ? "Loading sites..." : "Select site"} />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.map((site) => (
+                <SelectItem key={site.id} value={site.id}>
+                  {site.site_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => {
+              fetchOverviewData();
+              fetchInsightsData();
+              fetchHistoryData();
+            }}
+            variant="outline"
+            className="gap-2"
+            disabled={!selectedSiteDetails}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh All
+          </Button>
+        </div>
       </div>
+      {selectedSiteDetails && (
+        <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-4">
+          <span className="font-medium text-foreground">Site:</span>
+          <span>{selectedSiteDetails.site_name}</span>
+          <span>•</span>
+          <span>Lat {selectedSiteDetails.latitude.toFixed(3)}°, Lon {selectedSiteDetails.longitude.toFixed(3)}°</span>
+          <span>•</span>
+          <span>Capacity {selectedSiteDetails.system_size_kwp ?? 100} kWp</span>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-2xl">

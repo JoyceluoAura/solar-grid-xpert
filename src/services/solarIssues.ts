@@ -18,6 +18,26 @@ export type IssueType =
 
 export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
+const createPoster = (title: string, subtitle: string, gradientFrom: string, gradientTo: string) => {
+  const svg = `
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>
+      <defs>
+        <linearGradient id='grad' x1='0%' y1='0%' x2='100%' y2='100%'>
+          <stop offset='0%' stop-color='${gradientFrom}' />
+          <stop offset='100%' stop-color='${gradientTo}' />
+        </linearGradient>
+      </defs>
+      <rect width='400' height='300' fill='url(#grad)' rx='24' ry='24'/>
+      <g fill='rgba(255,255,255,0.85)'>
+        <text x='32' y='150' font-size='42' font-weight='700' font-family='Inter,sans-serif'>${title}</text>
+        <text x='32' y='198' font-size='22' font-weight='500' font-family='Inter,sans-serif'>${subtitle}</text>
+      </g>
+    </svg>
+  `;
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+};
+
 export interface SolarIssue {
   id: string;
   site_id: string;
@@ -81,7 +101,7 @@ class SolarIssueService {
     hotspot: {
       type: 'hotspot',
       videoUrl: 'https://videos.pexels.com/video-files/8092472/8092472-uhd_2560_1440_25fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      posterUrl: createPoster('Hotspot Detected', 'Cell overheating pattern', '#ef4444', '#f97316'),
       description: 'Thermal anomaly detected - immediate inspection required',
       typical_severity: 'critical',
       energy_loss_range: [15, 35],
@@ -95,8 +115,8 @@ class SolarIssueService {
     },
     crack: {
       type: 'crack',
-      videoUrl: 'https://videos.pexels.com/video-files/7989442/7989442-uhd_2560_1440_24fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      videoUrl: 'https://videos.pexels.com/video-files/9604094/9604094-uhd_2560_1440_24fps.mp4',
+      posterUrl: createPoster('Cracked Glass', 'Micro-fracture on string', '#7c3aed', '#ec4899'),
       description: 'Physical crack detected on panel surface',
       typical_severity: 'high',
       energy_loss_range: [10, 25],
@@ -110,8 +130,8 @@ class SolarIssueService {
     },
     soiling: {
       type: 'soiling',
-      videoUrl: 'https://videos.pexels.com/video-files/7989442/7989442-uhd_2560_1440_24fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      videoUrl: 'https://videos.pexels.com/video-files/6076970/6076970-uhd_3840_2160_25fps.mp4',
+      posterUrl: createPoster('Bird Droppings', 'Soiling across cells', '#ca8a04', '#facc15'),
       description: 'Heavy dust accumulation reducing efficiency',
       typical_severity: 'medium',
       energy_loss_range: [5, 15],
@@ -125,8 +145,8 @@ class SolarIssueService {
     },
     delamination: {
       type: 'delamination',
-      videoUrl: 'https://videos.pexels.com/video-files/8092472/8092472-uhd_2560_1440_25fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      videoUrl: 'https://videos.pexels.com/video-files/4496260/4496260-uhd_3840_2160_24fps.mp4',
+      posterUrl: createPoster('Delamination', 'Encapsulant bubbling', '#0ea5e9', '#22d3ee'),
       description: 'Layer separation detected - monitor closely',
       typical_severity: 'high',
       energy_loss_range: [12, 30],
@@ -140,8 +160,8 @@ class SolarIssueService {
     },
     shadow: {
       type: 'shadow',
-      videoUrl: 'https://videos.pexels.com/video-files/3843212/3843212-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      videoUrl: 'https://videos.pexels.com/video-files/6077448/6077448-uhd_3840_2160_25fps.mp4',
+      posterUrl: createPoster('Cloud Shading', 'Passing cumulus cover', '#1d4ed8', '#0ea5e9'),
       description: 'Shading detected affecting output',
       typical_severity: 'medium',
       energy_loss_range: [20, 50],
@@ -155,8 +175,8 @@ class SolarIssueService {
     },
     snow: {
       type: 'snow',
-      videoUrl: 'https://videos.pexels.com/video-files/3843212/3843212-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      videoUrl: 'https://videos.pexels.com/video-files/2675514/2675514-uhd_2560_1440_25fps.mp4',
+      posterUrl: createPoster('Snow Cover', 'Panels partially buried', '#94a3b8', '#38bdf8'),
       description: 'Snow coverage affecting generation',
       typical_severity: 'low',
       energy_loss_range: [80, 100],
@@ -171,7 +191,7 @@ class SolarIssueService {
     none: {
       type: 'none',
       videoUrl: 'https://videos.pexels.com/video-files/2611250/2611250-uhd_2560_1440_30fps.mp4',
-      posterUrl: 'https://images.pexels.com/photos/433308/pexels-photo-433308.jpeg?auto=compress&cs=tinysrgb&w=400&h=300',
+      posterUrl: createPoster('All Clear', 'No issues detected', '#4ade80', '#22c55e'),
       description: 'All panels operating within normal parameters',
       typical_severity: 'info',
       energy_loss_range: [0, 2],

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,10 +34,52 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { openMeteoService, SolarDataPoint } from "@/services/openMeteo";
+import { openMeteoService, SolarDataPoint, DailySolarDataPoint } from "@/services/openMeteo";
 import { nasaPowerService, SolarWeatherData } from "@/services/nasaPower";
 import { solarIssueService, SolarIssue } from "@/services/solarIssues";
 import { weatherDataService, SolarSample } from "@/services/weatherData";
+import { deviceMetricsService, BatteryMetric, InverterMetric, DeviceMetricsSummary } from "@/services/deviceMetrics";
+
+const PANEL_CONFIGURATIONS = [
+  {
+    id: "rooftop_a",
+    label: "Rooftop Array A",
+    capacityKw: 42,
+    orientationFactor: 1,
+    temperatureBias: 0,
+    color: "#f97316",
+  },
+  {
+    id: "rooftop_b",
+    label: "Rooftop Array B",
+    capacityKw: 35,
+    orientationFactor: 0.94,
+    temperatureBias: 1.5,
+    color: "#3b82f6",
+  },
+  {
+    id: "carport",
+    label: "Carport Array",
+    capacityKw: 23,
+    orientationFactor: 0.88,
+    temperatureBias: -1.2,
+    color: "#10b981",
+  },
+] as const;
+
+const TOTAL_PANEL_CAPACITY = PANEL_CONFIGURATIONS.reduce((sum, config) => sum + config.capacityKw, 0);
+
+interface DisplayDataPoint {
+  label: string;
+  ac_output: number;
+  dc_output: number;
+  irradiance: number;
+  ambient_temp: number;
+  cell_temp: number;
+  configOutputs: Record<string, number>;
+  configIrradiance: Record<string, number>;
+  configTemps: Record<string, number>;
+}
 
 const IoTSensors = () => {
   const { user } = useAuth();
@@ -46,7 +88,7 @@ const IoTSensors = () => {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     sensor_name: "",
-    sensor_type: "thermal",
+    sensor_type: "temperature",
     protocol: "mqtt",
     device_id: "",
     endpoint_url: "",
@@ -57,6 +99,11 @@ const IoTSensors = () => {
   const [pvDataLoading, setPvDataLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [batteryMetrics, setBatteryMetrics] = useState<BatteryMetric[]>([]);
+  const [inverterMetrics, setInverterMetrics] = useState<InverterMetric[]>([]);
+  const [deviceSummary, setDeviceSummary] = useState<DeviceMetricsSummary | null>(null);
+  const [historicalSolarData, setHistoricalSolarData] = useState<DailySolarDataPoint[]>([]);
+  const [historicalLoading, setHistoricalLoading] = useState(true);
 
   // Site parameters for PVWatts (can be made configurable later)
   const [siteParams, setSiteParams] = useState({
@@ -76,7 +123,7 @@ const IoTSensors = () => {
   // Filters for Metrics Data
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [dayNightFilter, setDayNightFilter] = useState<'all' | 'day' | 'night'>('all');
-  const [viewMode, setViewMode] = useState<'hourly' | 'weekly' | 'monthly'>('hourly');
+  const [viewMode, setViewMode] = useState<'hourly' | 'weekly' | 'monthly' | 'yearly'>('hourly');
 
   // Fetch sensors data
   useEffect(() => {
@@ -86,6 +133,10 @@ const IoTSensors = () => {
   // Fetch solar data on mount
   useEffect(() => {
     fetchSolarData();
+  }, []);
+
+  useEffect(() => {
+    fetchHistoricalSolarData();
   }, []);
 
   // Fetch weather and issues data on mount
@@ -121,6 +172,13 @@ const IoTSensors = () => {
       setPvDataLoading(true);
       const data = await openMeteoService.fetchSolarData(siteParams);
       setSolarData(data);
+      const deviceData = deviceMetricsService.generateFromSolarData(data, {
+        systemCapacityKw: siteParams.system_capacity,
+        batteryCapacityKwh: siteParams.system_capacity * 4.2,
+      });
+      setBatteryMetrics(deviceData.batteryMetrics);
+      setInverterMetrics(deviceData.inverterMetrics);
+      setDeviceSummary(deviceData.summary);
       setLastUpdated(new Date());
       console.log(`✅ Updated solar data: ${data.length} hours`);
     } catch (error) {
@@ -128,6 +186,29 @@ const IoTSensors = () => {
       toast.error('Failed to fetch solar data');
     } finally {
       setPvDataLoading(false);
+    }
+  };
+
+  const fetchHistoricalSolarData = async () => {
+    try {
+      setHistoricalLoading(true);
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setFullYear(startDate.getFullYear() - 2);
+
+      const historical = await openMeteoService.fetchHistoricalDailyData(
+        siteParams,
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0]
+      );
+
+      setHistoricalSolarData(historical);
+      console.log(`📈 Loaded ${historical.length} days of historical solar data`);
+    } catch (error) {
+      console.error('Error fetching historical solar data:', error);
+      toast.error('Failed to load historical solar data');
+    } finally {
+      setHistoricalLoading(false);
     }
   };
 
@@ -204,7 +285,7 @@ const IoTSensors = () => {
       setOpen(false);
       setFormData({
         sensor_name: "",
-        sensor_type: "thermal",
+        sensor_type: "temperature",
         protocol: "mqtt",
         device_id: "",
         endpoint_url: "",
@@ -218,7 +299,7 @@ const IoTSensors = () => {
 
   const getSensorIcon = (type: string) => {
     switch (type) {
-      case "thermal":
+      case "temperature":
         return Thermometer;
       case "inverter":
       case "voltage":
@@ -261,22 +342,253 @@ const IoTSensors = () => {
   };
 
   // Filter solar data based on date and day/night
-  const getFilteredSolarData = () => {
-    let filtered = solarData;
+  const displayData = useMemo<DisplayDataPoint[]>(() => {
+    const buildPoint = (
+      label: string,
+      acValue: number,
+      dcValue: number,
+      irradianceValue: number,
+      ambient: number,
+      cell: number
+    ): DisplayDataPoint => {
+      const configOutputs: Record<string, number> = {};
+      const configIrradiance: Record<string, number> = {};
+      const configTemps: Record<string, number> = {};
 
-    // Apply day/night filter
-    if (dayNightFilter !== 'all') {
-      filtered = filtered.filter(dataPoint => {
-        const hour = parseInt(dataPoint.hour.split(':')[0]);
-        const isDaytime = hour >= 6 && hour < 18;
-        return dayNightFilter === 'day' ? isDaytime : !isDaytime;
+      PANEL_CONFIGURATIONS.forEach((config) => {
+        const share = config.capacityKw / TOTAL_PANEL_CAPACITY;
+        const adjustedOutput = acValue * share * config.orientationFactor;
+        configOutputs[config.id] = Number(adjustedOutput.toFixed(2));
+        configIrradiance[config.id] = Number((irradianceValue * config.orientationFactor).toFixed(1));
+        configTemps[config.id] = Number((cell + config.temperatureBias).toFixed(1));
       });
+
+      return {
+        label,
+        ac_output: Number(acValue.toFixed(2)),
+        dc_output: Number(dcValue.toFixed(2)),
+        irradiance: Number(irradianceValue.toFixed(1)),
+        ambient_temp: Number(ambient.toFixed(1)),
+        cell_temp: Number(cell.toFixed(1)),
+        configOutputs,
+        configIrradiance,
+        configTemps,
+      };
+    };
+
+    if (viewMode === 'hourly') {
+      let filtered = solarData;
+      if (selectedDate) {
+        filtered = filtered.filter((point) => point.timestamp.startsWith(selectedDate));
+      }
+      if (!filtered.length) {
+        filtered = solarData;
+      }
+      if (dayNightFilter !== 'all') {
+        filtered = filtered.filter((dataPoint) => {
+          const hour = parseInt(dataPoint.hour.split(':')[0]);
+          const isDaytime = hour >= 6 && hour < 18;
+          return dayNightFilter === 'day' ? isDaytime : !isDaytime;
+        });
+      }
+
+      return filtered.map((point) =>
+        buildPoint(
+          point.hour,
+          point.ac_output,
+          point.dc_output,
+          point.irradiance,
+          point.ambient_temp,
+          point.cell_temp
+        )
+      );
     }
 
-    return filtered;
-  };
+    if (!historicalSolarData.length) {
+      return [];
+    }
 
-  const filteredSolarData = getFilteredSolarData();
+    const orderedHistorical = [...historicalSolarData].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    if (viewMode === 'weekly') {
+      const last7 = orderedHistorical.slice(-7);
+      return last7.map((day) =>
+        buildPoint(
+          new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          day.ac_output / 24,
+          day.dc_output / 24,
+          day.irradiance / 24,
+          day.ambient_temp,
+          day.cell_temp
+        )
+      );
+    }
+
+    if (viewMode === 'monthly') {
+      const last30 = orderedHistorical.slice(-30);
+      return last30.map((day) =>
+        buildPoint(
+          new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          day.ac_output / 24,
+          day.dc_output / 24,
+          day.irradiance / 24,
+          day.ambient_temp,
+          day.cell_temp
+        )
+      );
+    }
+
+    // Yearly view - aggregate by month for the last 12 months
+    const monthlyBuckets = new Map<string, {
+      ac: number;
+      dc: number;
+      irr: number;
+      ambient: number;
+      cell: number;
+      count: number;
+    }>();
+
+    orderedHistorical.forEach((day) => {
+      const monthKey = day.date.slice(0, 7); // YYYY-MM
+      if (!monthlyBuckets.has(monthKey)) {
+        monthlyBuckets.set(monthKey, { ac: 0, dc: 0, irr: 0, ambient: 0, cell: 0, count: 0 });
+      }
+      const bucket = monthlyBuckets.get(monthKey)!;
+      bucket.ac += day.ac_output;
+      bucket.dc += day.dc_output;
+      bucket.irr += day.irradiance;
+      bucket.ambient += day.ambient_temp;
+      bucket.cell += day.cell_temp;
+      bucket.count += 1;
+    });
+
+    const monthlyPoints = Array.from(monthlyBuckets.entries())
+      .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+      .slice(-12);
+
+    return monthlyPoints.map(([monthKey, bucket]) =>
+      buildPoint(
+        new Date(`${monthKey}-01`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+        (bucket.ac / bucket.count) / 24,
+        (bucket.dc / bucket.count) / 24,
+        (bucket.irr / bucket.count) / 24,
+        bucket.ambient / bucket.count,
+        bucket.cell / bucket.count
+      )
+    );
+  }, [solarData, historicalSolarData, viewMode, dayNightFilter, selectedDate]);
+
+  const chartUnits = useMemo(() => ({
+    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : 'Avg Power (kW)',
+    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : 'Avg Irradiance (W/m²)',
+    tooltipPowerSuffix: viewMode === 'hourly' ? ' kW' : ' kW avg',
+    tooltipIrrSuffix: viewMode === 'hourly' ? ' W/m²' : ' W/m² avg',
+  }), [viewMode]);
+
+  const viewMeta = useMemo(() => {
+    if (viewMode === 'hourly') {
+      return {
+        windowLabel: '24-hour live view',
+        totalSourcePoints: solarData.length,
+        pointDescriptor: 'hourly samples',
+      };
+    }
+
+    if (viewMode === 'weekly') {
+      return {
+        windowLabel: '7-day daily averages',
+        totalSourcePoints: Math.min(7, historicalSolarData.length),
+        pointDescriptor: 'days',
+      };
+    }
+
+    if (viewMode === 'monthly') {
+      return {
+        windowLabel: '30-day daily averages',
+        totalSourcePoints: Math.min(30, historicalSolarData.length),
+        pointDescriptor: 'days',
+      };
+    }
+
+    const monthsAvailable = Math.max(1, Math.floor(historicalSolarData.length / 30));
+    return {
+      windowLabel: '12-month rolling averages',
+      totalSourcePoints: Math.min(12, monthsAvailable),
+      pointDescriptor: 'months',
+    };
+  }, [viewMode, solarData.length, historicalSolarData.length]);
+
+  const aggregateStats = useMemo(() => {
+    if (!displayData.length) {
+      return null;
+    }
+
+    const latest = displayData[displayData.length - 1];
+    const peakPower = Math.max(...displayData.map((d) => d.ac_output));
+    const avgPower = displayData.reduce((sum, d) => sum + d.ac_output, 0) / displayData.length;
+    const energyMultiplier = viewMode === 'hourly' ? 1 : 24;
+    const totalEnergyKwh = displayData.reduce((sum, d) => sum + d.ac_output * energyMultiplier, 0);
+
+    return {
+      latestPower: latest.ac_output,
+      peakPower,
+      avgPower,
+      totalEnergyKwh,
+    };
+  }, [displayData, viewMode]);
+
+  const irradianceStats = useMemo(() => {
+    if (!displayData.length) {
+      return null;
+    }
+
+    const latest = displayData[displayData.length - 1];
+    const peakIrradiance = Math.max(...displayData.map((d) => d.irradiance));
+
+    return {
+      latest: latest.irradiance,
+      peak: peakIrradiance,
+    };
+  }, [displayData]);
+
+  const temperatureStats = useMemo(() => {
+    if (!displayData.length) {
+      return null;
+    }
+
+    const latest = displayData[displayData.length - 1];
+    const avgTemp = displayData.reduce((sum, d) => sum + d.cell_temp, 0) / displayData.length;
+
+    return {
+      latestCell: latest.cell_temp,
+      avgCell: avgTemp,
+    };
+  }, [displayData]);
+
+  const batteryChartData = useMemo(() =>
+    batteryMetrics.slice(-24).map((metric) => ({
+      label: new Date(metric.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      stateOfCharge: metric.stateOfCharge,
+      netPower: Number((metric.chargePowerKw - metric.dischargePowerKw).toFixed(2)),
+      temperatureC: metric.temperatureC,
+    })),
+    [batteryMetrics]
+  );
+
+  const inverterChartData = useMemo(() =>
+    inverterMetrics.slice(-24).map((metric) => ({
+      label: new Date(metric.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      efficiencyPct: metric.efficiencyPct,
+      acOutputKw: metric.acOutputKw,
+      clippingPct: metric.clippingPct,
+    })),
+    [inverterMetrics]
+  );
+
+  const latestBatteryMetric = batteryMetrics[batteryMetrics.length - 1];
+  const latestInverterMetric = inverterMetrics[inverterMetrics.length - 1];
 
   return (
     <div className="min-h-screen bg-background">
@@ -320,7 +632,7 @@ const IoTSensors = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="thermal">Thermal</SelectItem>
+                      <SelectItem value="temperature">Temperature</SelectItem>
                       <SelectItem value="inverter">Inverter</SelectItem>
                       <SelectItem value="voltage">Voltage</SelectItem>
                       <SelectItem value="irradiance">Irradiance</SelectItem>
@@ -391,7 +703,8 @@ const IoTSensors = () => {
             <CardContent>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sensors.map((sensor) => {
-                  const Icon = getSensorIcon(sensor.sensor_type);
+                  const normalizedType = sensor.sensor_type === 'thermal' ? 'temperature' : sensor.sensor_type;
+                  const Icon = getSensorIcon(normalizedType);
                   const statusColor = getStatusColor(sensor.status);
                   return (
                     <div
@@ -399,7 +712,7 @@ const IoTSensors = () => {
                       className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-md transition-all"
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-lg gradient-${sensor.sensor_type === 'battery' ? 'eco' : sensor.sensor_type === 'inverter' ? 'energy' : 'solar'} flex items-center justify-center flex-shrink-0`}>
+                        <div className={`w-10 h-10 rounded-lg gradient-${normalizedType === 'battery' ? 'eco' : normalizedType === 'inverter' ? 'energy' : 'solar'} flex items-center justify-center flex-shrink-0`}>
                           <Icon className="w-5 h-5 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -410,7 +723,7 @@ const IoTSensors = () => {
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground capitalize mb-2">
-                            {sensor.sensor_type.replace('_', ' ')}
+                            {normalizedType.replace('_', ' ')}
                           </p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <span className="truncate">{sensor.protocol.toUpperCase()}</span>
@@ -556,57 +869,232 @@ const IoTSensors = () => {
                         variant={viewMode === 'monthly' ? 'default' : 'ghost'}
                         size="sm"
                         onClick={() => setViewMode('monthly')}
-                        className="rounded-l-none text-xs px-3"
+                        className="rounded-none text-xs px-3"
                       >
                         Monthly
+                      </Button>
+                      <Button
+                        variant={viewMode === 'yearly' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setViewMode('yearly')}
+                        className="rounded-l-none text-xs px-3"
+                      >
+                        Yearly
                       </Button>
                     </div>
                   </div>
 
                   <div className="w-full text-xs text-muted-foreground">
-                    Showing {filteredSolarData.length} of {solarData.length} data points • {viewMode === 'hourly' ? '24 hours' : viewMode === 'weekly' ? '7 days' : '30 days'} view
+                    Showing {displayData.length} {viewMeta.pointDescriptor} • {viewMeta.windowLabel}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* View Mode Info */}
-            {(viewMode === 'weekly' || viewMode === 'monthly') && (
-              <Card className="shadow-card border-blue-200 bg-blue-50">
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-blue-900">
-                      <p className="font-medium mb-1">Limited Historical Data</p>
-                      <p className="text-xs">
-                        Currently displaying 24 hours of data. Weekly and monthly views show the same timeframe.
-                        For extended historical analysis, configure longer data retention in your system settings.
-                      </p>
+            {/* Battery and Inverter Metrics */}
+            {batteryChartData.length > 0 && inverterChartData.length > 0 && (
+              <div className="grid md:grid-cols-2 gap-6">
+                <Card className="shadow-card border-emerald-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Battery className="w-5 h-5 text-emerald-500" />
+                      Battery Storage Sensors
+                    </CardTitle>
+                    <CardDescription>
+                      Live state-of-charge modelling derived from Open-Meteo irradiance and site load assumptions
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={batteryChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis
+                          dataKey="label"
+                          style={{ fontSize: '11px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis
+                          yAxisId="soc"
+                          domain={[0, 100]}
+                          label={{ value: 'State of Charge (%)', angle: -90, position: 'insideLeft', style: { fontSize: '11px' } }}
+                          style={{ fontSize: '11px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis
+                          yAxisId="power"
+                          orientation="right"
+                          label={{ value: 'Net Power (kW)', angle: 90, position: 'insideRight', style: { fontSize: '11px' } }}
+                          style={{ fontSize: '11px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(value: any, name: string) => [
+                            name.includes('Power') ? `${Number(value).toFixed(2)} kW` : `${Number(value).toFixed(1)}%`,
+                            name,
+                          ]}
+                        />
+                        <Legend />
+                        <Line
+                          yAxisId="soc"
+                          type="monotone"
+                          dataKey="stateOfCharge"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          dot={false}
+                          name="State of Charge"
+                        />
+                        <Line
+                          yAxisId="power"
+                          type="monotone"
+                          dataKey="netPower"
+                          stroke="#6366f1"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="Net Power"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
+                      <div className="p-3 rounded-lg bg-emerald-50 border">
+                        <p className="text-muted-foreground">Latest SoC</p>
+                        <p className="text-lg font-semibold text-emerald-600">
+                          {latestBatteryMetric ? `${latestBatteryMetric.stateOfCharge.toFixed(1)}%` : '--'}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-blue-50 border">
+                        <p className="text-muted-foreground">Avg SoC</p>
+                        <p className="text-lg font-semibold text-blue-600">
+                          {deviceSummary ? `${deviceSummary.battery.avgSoc.toFixed(1)}%` : '--'}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-amber-50 border">
+                        <p className="text-muted-foreground">Daily Throughput</p>
+                        <p className="text-lg font-semibold text-amber-600">
+                          {deviceSummary ? `${deviceSummary.battery.dailyThroughputKwh.toFixed(1)} kWh` : '--'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                <Card className="shadow-card border-blue-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-blue-500" />
+                      Inverter Sensors
+                    </CardTitle>
+                    <CardDescription>
+                      Efficiency and AC output metrics generated from live DC/AC conversions of the Open-Meteo feed
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={inverterChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis
+                          dataKey="label"
+                          style={{ fontSize: '11px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis
+                          yAxisId="efficiency"
+                          domain={[80, 100]}
+                          label={{ value: 'Efficiency (%)', angle: -90, position: 'insideLeft', style: { fontSize: '11px' } }}
+                          style={{ fontSize: '11px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <YAxis
+                          yAxisId="power"
+                          orientation="right"
+                          label={{ value: 'AC Output (kW)', angle: 90, position: 'insideRight', style: { fontSize: '11px' } }}
+                          style={{ fontSize: '11px' }}
+                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(value: any, name: string) => [
+                            name.includes('Output') ? `${Number(value).toFixed(2)} kW` : `${Number(value).toFixed(1)}%`,
+                            name,
+                          ]}
+                        />
+                        <Legend />
+                        <Line
+                          yAxisId="efficiency"
+                          type="monotone"
+                          dataKey="efficiencyPct"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Efficiency"
+                        />
+                        <Line
+                          yAxisId="power"
+                          type="monotone"
+                          dataKey="acOutputKw"
+                          stroke="#f97316"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="AC Output"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
+                      <div className="p-3 rounded-lg bg-blue-50 border">
+                        <p className="text-muted-foreground">Peak Efficiency</p>
+                        <p className="text-lg font-semibold text-blue-600">
+                          {deviceSummary ? `${deviceSummary.inverter.peakEfficiencyPct.toFixed(1)}%` : '--'}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-sky-50 border">
+                        <p className="text-muted-foreground">Avg Efficiency</p>
+                        <p className="text-lg font-semibold text-sky-600">
+                          {deviceSummary ? `${deviceSummary.inverter.avgEfficiencyPct.toFixed(1)}%` : '--'}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-indigo-50 border">
+                        <p className="text-muted-foreground">Daily Energy</p>
+                        <p className="text-lg font-semibold text-indigo-600">
+                          {deviceSummary ? `${deviceSummary.inverter.totalEnergyKwh.toFixed(1)} kWh` : '--'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {/* Solar Performance Charts */}
-            {filteredSolarData.length > 0 ? (
+            {displayData.length > 0 ? (
               <>
                 {/* AC Power Output Chart */}
                 <Card className="shadow-card">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Zap className="w-5 h-5 text-orange-500" />
-                      AC Power Output ({viewMode === 'hourly' ? '24-Hour' : viewMode === 'weekly' ? '7-Day' : '30-Day'})
+                      AC Power Output ({viewMode === 'hourly' ? '24-Hour' : viewMode === 'weekly' ? '7-Day' : viewMode === 'monthly' ? '30-Day' : '12-Month'})
                     </CardTitle>
                     <CardDescription>
-                      {viewMode === 'hourly' ? 'Live hourly AC power generation from solar panels' :
-                       viewMode === 'weekly' ? 'Weekly AC power generation trend' :
-                       'Monthly AC power generation overview'}
+                      {viewMode === 'hourly'
+                        ? 'Live hourly AC power generation from solar panels'
+                        : viewMode === 'weekly'
+                        ? 'Daily average power across the last week'
+                        : viewMode === 'monthly'
+                        ? 'Daily average power across the last month'
+                        : 'Monthly average power across the last year'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={filteredSolarData}>
+                      <AreaChart data={displayData}>
                         <defs>
                           <linearGradient id="colorAC" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#f97316" stopOpacity={0.8} />
@@ -615,12 +1103,12 @@ const IoTSensors = () => {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis
-                          dataKey="hour"
+                          dataKey="label"
                           style={{ fontSize: '12px' }}
                           tick={{ fill: 'hsl(var(--muted-foreground))' }}
                         />
                         <YAxis
-                          label={{ value: 'Power (kW)', angle: -90, position: 'insideLeft', style: { fontSize: '12px' } }}
+                          label={{ value: chartUnits.powerLabel, angle: -90, position: 'insideLeft', style: { fontSize: '12px' } }}
                           style={{ fontSize: '12px' }}
                           tick={{ fill: 'hsl(var(--muted-foreground))' }}
                         />
@@ -630,8 +1118,9 @@ const IoTSensors = () => {
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: any) => [`${value.toFixed(2)} kW`, 'AC Power']}
+                          formatter={(value: any, name: string) => [`${Number(value).toFixed(2)}${chartUnits.tooltipPowerSuffix}`, name]}
                         />
+                        <Legend />
                         <Area
                           type="monotone"
                           dataKey="ac_output"
@@ -640,25 +1129,36 @@ const IoTSensors = () => {
                           fill="url(#colorAC)"
                           strokeWidth={2}
                         />
+                        {PANEL_CONFIGURATIONS.map((config) => (
+                          <Line
+                            key={config.id}
+                            type="monotone"
+                            dataKey={`configOutputs.${config.id}`}
+                            stroke={config.color}
+                            strokeWidth={2}
+                            dot={false}
+                            name={config.label}
+                          />
+                        ))}
                       </AreaChart>
                     </ResponsiveContainer>
                     <div className="mt-4 grid grid-cols-3 gap-4">
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-orange-50 to-white border">
                         <p className="text-xs text-muted-foreground">Current Output</p>
                         <p className="text-xl font-bold text-orange-600">
-                          {filteredSolarData[filteredSolarData.length - 1]?.ac_output.toFixed(2)} kW
+                          {aggregateStats ? aggregateStats.latestPower.toFixed(2) : '--'} kW
                         </p>
                       </div>
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-blue-50 to-white border">
                         <p className="text-xs text-muted-foreground">Peak Output</p>
                         <p className="text-xl font-bold text-blue-600">
-                          {Math.max(...filteredSolarData.map(d => d.ac_output)).toFixed(2)} kW
+                          {aggregateStats ? aggregateStats.peakPower.toFixed(2) : '--'} kW
                         </p>
                       </div>
                       <div className="text-center p-3 rounded-lg bg-gradient-to-br from-green-50 to-white border">
                         <p className="text-xs text-muted-foreground">Avg Output</p>
                         <p className="text-xl font-bold text-green-600">
-                          {(filteredSolarData.reduce((sum, d) => sum + d.ac_output, 0) / filteredSolarData.length).toFixed(2)} kW
+                          {aggregateStats ? aggregateStats.avgPower.toFixed(2) : '--'} kW
                         </p>
                       </div>
                     </div>
@@ -678,10 +1178,10 @@ const IoTSensors = () => {
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={filteredSolarData}>
+                        <LineChart data={displayData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
-                            dataKey="hour"
+                            dataKey="label"
                             style={{ fontSize: '11px' }}
                             tick={{ fill: 'hsl(var(--muted-foreground))' }}
                           />
@@ -695,22 +1195,44 @@ const IoTSensors = () => {
                               border: "1px solid hsl(var(--border))",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: any) => [`${value.toFixed(0)} W/m²`, 'Irradiance']}
+                            formatter={(value: any, name: string) => [`${Number(value).toFixed(0)}${chartUnits.tooltipIrrSuffix}`, name]}
                           />
+                          <Legend />
                           <Line
                             type="monotone"
                             dataKey="irradiance"
                             stroke="#eab308"
                             strokeWidth={2}
                             dot={false}
+                            name="Site Average"
                           />
+                          {PANEL_CONFIGURATIONS.map((config) => (
+                            <Line
+                              key={config.id}
+                              type="monotone"
+                              dataKey={`configIrradiance.${config.id}`}
+                              stroke={config.color}
+                              strokeWidth={1.5}
+                              dot={false}
+                              strokeDasharray="6 4"
+                              name={`${config.label} Irradiance`}
+                            />
+                          ))}
                         </LineChart>
                       </ResponsiveContainer>
-                      <div className="mt-3 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Current</span>
-                        <span className="font-semibold text-yellow-600">
-                          {filteredSolarData[filteredSolarData.length - 1]?.irradiance.toFixed(0)} W/m²
-                        </span>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Latest</span>
+                          <span className="font-semibold text-yellow-600">
+                            {irradianceStats ? irradianceStats.latest.toFixed(0) : '--'} W/m²
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Peak</span>
+                          <span className="font-semibold text-amber-600">
+                            {irradianceStats ? irradianceStats.peak.toFixed(0) : '--'} W/m²
+                          </span>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -726,10 +1248,10 @@ const IoTSensors = () => {
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={filteredSolarData}>
+                        <LineChart data={displayData}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
-                            dataKey="hour"
+                            dataKey="label"
                             style={{ fontSize: '11px' }}
                             tick={{ fill: 'hsl(var(--muted-foreground))' }}
                           />
@@ -744,7 +1266,7 @@ const IoTSensors = () => {
                               borderRadius: "8px",
                             }}
                             formatter={(value: any, name: string) => [
-                              `${value.toFixed(1)}°C`,
+                              `${Number(value).toFixed(1)}°C`,
                               name
                             ]}
                           />
@@ -765,13 +1287,33 @@ const IoTSensors = () => {
                             dot={false}
                             name="Ambient Temp"
                           />
+                          {PANEL_CONFIGURATIONS.map((config) => (
+                            <Line
+                              key={config.id}
+                              type="monotone"
+                              dataKey={`configTemps.${config.id}`}
+                              stroke={config.color}
+                              strokeWidth={1.5}
+                              dot={false}
+                              strokeDasharray="4 4"
+                              name={`${config.label} Cell Temp`}
+                            />
+                          ))}
                         </LineChart>
                       </ResponsiveContainer>
-                      <div className="mt-3 flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Cell Temp</span>
-                        <span className="font-semibold text-red-600">
-                          {filteredSolarData[filteredSolarData.length - 1]?.cell_temp.toFixed(1)}°C
-                        </span>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Latest Cell</span>
+                          <span className="font-semibold text-red-600">
+                            {temperatureStats ? temperatureStats.latestCell.toFixed(1) : '--'}°C
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Avg Cell</span>
+                          <span className="font-semibold text-rose-600">
+                            {temperatureStats ? temperatureStats.avgCell.toFixed(1) : '--'}°C
+                          </span>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -783,29 +1325,29 @@ const IoTSensors = () => {
                     <div className="flex items-start space-x-3">
                       <TrendingUp className="h-5 w-5 text-green-500 mt-0.5" />
                       <div className="flex-1">
-                        <p className="text-sm font-medium mb-2">24-Hour Performance Summary</p>
+                        <p className="text-sm font-medium mb-2">{viewMeta.windowLabel} Summary</p>
                         <div className="grid grid-cols-4 gap-4 text-xs">
                           <div>
                             <span className="text-muted-foreground">Total Energy:</span>
                             <span className="font-semibold ml-1">
-                              {(filteredSolarData.reduce((sum, d) => sum + d.ac_output, 0)).toFixed(1)} kWh
+                              {aggregateStats ? aggregateStats.totalEnergyKwh.toFixed(1) : '--'} kWh
                             </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Peak Irradiance:</span>
                             <span className="font-semibold ml-1">
-                              {Math.max(...filteredSolarData.map(d => d.irradiance)).toFixed(0)} W/m²
+                              {irradianceStats ? irradianceStats.peak.toFixed(0) : '--'} W/m²
                             </span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Avg Cell Temp:</span>
                             <span className="font-semibold ml-1">
-                              {(filteredSolarData.reduce((sum, d) => sum + d.cell_temp, 0) / filteredSolarData.length).toFixed(1)}°C
+                              {temperatureStats ? temperatureStats.avgCell.toFixed(1) : '--'}°C
                             </span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Data Source:</span>
-                            <span className="font-semibold ml-1">Open-Meteo Satellite</span>
+                            <span className="text-muted-foreground">Data Coverage:</span>
+                            <span className="font-semibold ml-1">Live + 24 months archive</span>
                           </div>
                         </div>
                       </div>
