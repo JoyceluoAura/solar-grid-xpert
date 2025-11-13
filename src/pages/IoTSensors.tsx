@@ -1295,7 +1295,7 @@ const IoTSensors = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Zap className="w-5 h-5 text-orange-500" />
-                      AC Power Output ({viewMode === 'hourly' ? '24-Hour' : viewMode === 'weekly' ? '7-Day' : viewMode === 'monthly' ? '30-Day' : '12-Month'})
+                      AC Power Output ({viewMode === 'hourly' ? '24-Hour' : viewMode === 'weekly' ? '7-Day' : viewMode === 'monthly' ? '30-Day' : viewMode === 'forecast' ? '3-Month' : '12-Month'})
                     </CardTitle>
                     <CardDescription>
                       {viewMode === 'hourly'
@@ -1304,6 +1304,8 @@ const IoTSensors = () => {
                         ? 'Daily average power across the last week'
                         : viewMode === 'monthly'
                         ? 'Daily average power across the last month'
+                        : viewMode === 'forecast'
+                        ? 'Forecasted power output for the next 3 months'
                         : 'Monthly average power across the last year'}
                     </CardDescription>
                   </CardHeader>
