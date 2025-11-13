@@ -585,28 +585,59 @@ const IoTSensors = () => {
     }
 
     if (viewMode === 'yearly') {
-      // Yearly view - aggregate by month for the last 12 months
+      // Yearly view - aggregate by month for the last 12 months using hourly data
       const monthlyBuckets = new Map<string, {
         ac: number;
         dc: number;
         irr: number;
         ambient: number;
         cell: number;
-        count: number;
+        ambientCount: number;
+        cellCount: number;
       }>();
 
-      orderedHistorical.forEach((day) => {
-        const monthKey = day.date.slice(0, 7); // YYYY-MM
+      // First, aggregate hourly data into daily totals, then sum into monthly totals
+      const allDates = new Set<string>();
+      orderedHistorical.forEach(day => allDates.add(day.date));
+      
+      allDates.forEach(dateStr => {
+        const monthKey = dateStr.slice(0, 7); // YYYY-MM
         if (!monthlyBuckets.has(monthKey)) {
-          monthlyBuckets.set(monthKey, { ac: 0, dc: 0, irr: 0, ambient: 0, cell: 0, count: 0 });
+          monthlyBuckets.set(monthKey, { ac: 0, dc: 0, irr: 0, ambient: 0, cell: 0, ambientCount: 0, cellCount: 0 });
         }
         const bucket = monthlyBuckets.get(monthKey)!;
-        bucket.ac += day.ac_output;
-        bucket.dc += day.dc_output;
-        bucket.irr += day.irradiance;
-        bucket.ambient += day.ambient_temp;
-        bucket.cell += day.cell_temp;
-        bucket.count += 1;
+        
+        // Try to get hourly data for this date
+        const hourlyForDate = extendedHourlyData.get(dateStr);
+        
+        if (hourlyForDate && hourlyForDate.length > 0) {
+          // Aggregate from hourly data for accuracy - sum to daily totals
+          const dailyAcSum = hourlyForDate.reduce((sum, p) => sum + p.ac_output, 0);
+          const dailyDcSum = hourlyForDate.reduce((sum, p) => sum + p.dc_output, 0);
+          const dailyIrrSum = hourlyForDate.reduce((sum, p) => sum + p.irradiance, 0);
+          const dailyTempAvg = hourlyForDate.reduce((sum, p) => sum + p.ambient_temp, 0) / hourlyForDate.length;
+          const dailyCellAvg = hourlyForDate.reduce((sum, p) => sum + p.cell_temp, 0) / hourlyForDate.length;
+          
+          bucket.ac += dailyAcSum;
+          bucket.dc += dailyDcSum;
+          bucket.irr += dailyIrrSum;
+          bucket.ambient += dailyTempAvg;
+          bucket.cell += dailyCellAvg;
+          bucket.ambientCount += 1;
+          bucket.cellCount += 1;
+        } else {
+          // Fall back to API daily data
+          const apiDaily = orderedHistorical.find(d => d.date === dateStr);
+          if (apiDaily) {
+            bucket.ac += apiDaily.ac_output;
+            bucket.dc += apiDaily.dc_output;
+            bucket.irr += apiDaily.irradiance;
+            bucket.ambient += apiDaily.ambient_temp;
+            bucket.cell += apiDaily.cell_temp;
+            bucket.ambientCount += 1;
+            bucket.cellCount += 1;
+          }
+        }
       });
 
       const monthlyPoints = Array.from(monthlyBuckets.entries())
@@ -619,8 +650,8 @@ const IoTSensors = () => {
           bucket.ac,
           bucket.dc,
           bucket.irr,
-          bucket.ambient / bucket.count,
-          bucket.cell / bucket.count
+          bucket.ambientCount > 0 ? bucket.ambient / bucket.ambientCount : 0,
+          bucket.cellCount > 0 ? bucket.cell / bucket.cellCount : 0
         )
       );
     }
