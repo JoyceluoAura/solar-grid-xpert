@@ -169,6 +169,7 @@ const IoTSensors = () => {
   }, []);
 
   useEffect(() => {
+    console.log('🎯 ViewMode changed to:', viewMode, '- triggering fetchHistoricalSolarData');
     fetchHistoricalSolarData();
   }, [viewMode]); // Refetch when view mode changes
 
@@ -231,6 +232,7 @@ const IoTSensors = () => {
   };
 
   const fetchHistoricalSolarData = async () => {
+    console.log('📥 fetchHistoricalSolarData called with viewMode:', viewMode);
     try {
       setHistoricalLoading(true);
       const endDate = new Date();
