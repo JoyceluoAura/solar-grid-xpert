@@ -178,9 +178,9 @@ class OpenMeteoService {
           const date = new Date(timestamp);
           const hour = date.getHours();
           
-          // Only include hours after currentHour from yesterday
-          // e.g., if current hour is 7, include hours 8-23 from yesterday
-          if (hour <= currentHour) continue;
+          // Include hours from currentHour onwards from yesterday (25-hour range)
+          // e.g., if current hour is 7, include hours 7-23 from yesterday
+          if (hour < currentHour) continue;
           
           const hourMatch = timestamp.match(/T(\d{2}):/);
           const localHour = hourMatch ? hourMatch[1] + ':00' : hour.toString().padStart(2, '0') + ':00';
