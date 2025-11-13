@@ -543,9 +543,9 @@ const IoTSensors = () => {
       return monthlyPoints.map(([monthKey, bucket]) =>
         buildPoint(
           new Date(`${monthKey}-01`).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
-          (bucket.ac / bucket.count) / 24,
-          (bucket.dc / bucket.count) / 24,
-          (bucket.irr / bucket.count) / 24,
+          bucket.ac / bucket.count,
+          bucket.dc / bucket.count,
+          bucket.irr / bucket.count,
           bucket.ambient / bucket.count,
           bucket.cell / bucket.count
         )
@@ -557,9 +557,9 @@ const IoTSensors = () => {
       return forecastData.map((day) =>
         buildPoint(
           new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          day.ac_output / 24,
-          day.dc_output / 24,
-          day.irradiance / 24,
+          day.ac_output,
+          day.dc_output,
+          day.irradiance,
           day.ambient_temp,
           day.cell_temp
         )
@@ -570,10 +570,10 @@ const IoTSensors = () => {
   }, [solarData, historicalSolarData, forecastData, viewMode, dayNightFilter, selectedDate]);
 
   const chartUnits = useMemo(() => ({
-    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : viewMode === 'forecast' ? 'Forecast Power (kW)' : 'Avg Power (kW)',
-    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : viewMode === 'forecast' ? 'Forecast Irradiance (W/m²)' : 'Avg Irradiance (W/m²)',
-    tooltipPowerSuffix: viewMode === 'hourly' ? ' kW' : ' kW avg',
-    tooltipIrrSuffix: viewMode === 'hourly' ? ' W/m²' : ' W/m² avg',
+    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : viewMode === 'forecast' ? 'Forecast Energy (kWh/day)' : 'Energy (kWh/day)',
+    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : viewMode === 'forecast' ? 'Forecast Irradiance (Wh/m²/day)' : 'Irradiance (Wh/m²/day)',
+    tooltipPowerSuffix: viewMode === 'hourly' ? ' kW' : ' kWh/day',
+    tooltipIrrSuffix: viewMode === 'hourly' ? ' W/m²' : ' Wh/m²/day',
   }), [viewMode]);
 
   const viewMeta = useMemo(() => {
