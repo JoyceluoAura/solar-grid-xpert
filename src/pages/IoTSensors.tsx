@@ -242,10 +242,12 @@ const IoTSensors = () => {
       // For forecast, only get the forecast data
       if (viewMode === 'forecast') {
         const forecast = await openMeteoService.fetchForecastData(siteParams);
+        console.log('🔍 About to set forecast data:', forecast.length, 'items');
         setForecastData(forecast);
         setHistoricalSolarData([]);
         setExtendedHourlyData(new Map());
-        console.log(`📈 Loaded ${forecast.length} days forecast`);
+        console.log(`📈 Loaded ${forecast.length} days forecast - state should update now`);
+        return; // Early return to prevent further execution
       } else if (viewMode === 'weekly' || viewMode === 'monthly') {
         // For weekly/monthly, fetch extended hourly data for accurate aggregation
         const daysToFetch = viewMode === 'weekly' ? 7 : 30;
@@ -608,7 +610,10 @@ const IoTSensors = () => {
 
     // Forecast view
     if (viewMode === 'forecast') {
-      console.log('📊 Forecast view - forecastData:', forecastData.length, 'items');
+      console.log('📊 DISPLAY MEMO RUNNING - Forecast view');
+      console.log('📊 forecastData length:', forecastData.length);
+      console.log('📊 forecastData array:', forecastData);
+      
       if (forecastData.length > 0) {
         console.log('📊 First forecast item:', forecastData[0]);
         const result = forecastData.map((day) =>
@@ -621,10 +626,10 @@ const IoTSensors = () => {
             day.cell_temp
           )
         );
-        console.log('📊 Mapped forecast points:', result.length, 'points');
+        console.log('📊 Successfully mapped', result.length, 'forecast points');
         return result;
       }
-      console.log('📊 No forecast data to display');
+      console.log('📊 No forecast data to display - returning empty array');
     }
 
     return [];
