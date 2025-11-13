@@ -626,7 +626,7 @@ const IoTSensors = () => {
 
     // Forecast view
     if (viewMode === 'forecast') {
-      console.log(`🔵 [${memoRunId}] Forecast branch - forecastData:`, forecastData.length, 'items');
+      console.log(`🔵 [${memoRunId}] Forecast branch - viewMode: ${viewMode}, forecastData:`, forecastData.length, 'items');
       
       if (forecastData.length > 0) {
         console.log(`🔵 [${memoRunId}] Mapping forecast data...`);
@@ -643,10 +643,11 @@ const IoTSensors = () => {
         console.log(`🔵 [${memoRunId}] ✅ Returning ${result.length} forecast points`);
         return result;
       }
-      console.log(`🔵 [${memoRunId}] ⚠️ No forecast data - returning empty array`);
+      console.log(`🔵 [${memoRunId}] ⚠️ No forecast data in forecast view - returning empty array`);
+      return []; // Must return here!
     }
 
-    console.log(`🔵 [${memoRunId}] ⚠️ Not forecast view or end of memo - returning empty array`);
+    console.log(`🔵 [${memoRunId}] ⚠️ Not forecast view (viewMode=${viewMode}) - returning empty array`);
     return [];
   }, [solarData, historicalSolarData, forecastData, extendedHourlyData, viewMode, dayNightFilter, selectedDate]);
 
