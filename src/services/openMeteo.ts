@@ -260,6 +260,69 @@ class OpenMeteoService {
   }
 
   /**
+   * Fetch extended hourly data for aggregation into accurate daily totals
+   * This fetches the last N days of hourly data from archive API
+   */
+  async fetchExtendedHourlyData(params: OpenMeteoParams, days: number = 30): Promise<Map<string, SolarDataPoint[]>> {
+    try {
+      const endDate = new Date();
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - days);
+      
+      const url = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}` +
+        `&start_date=${startDate.toISOString().split('T')[0]}` +
+        `&end_date=${endDate.toISOString().split('T')[0]}` +
+        `&hourly=shortwave_radiation,temperature_2m` +
+        `&timezone=auto`;
+
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.warn('Extended hourly data unavailable, using daily aggregates');
+        return new Map();
+      }
+
+      const data = await response.json();
+      const hourlyByDate = new Map<string, SolarDataPoint[]>();
+      
+      for (let i = 0; i < (data.hourly?.time?.length || 0); i++) {
+        const timestamp = data.hourly.time[i];
+        const date = new Date(timestamp);
+        const dateStr = date.toISOString().split('T')[0];
+        const hour = date.getHours();
+        
+        const irradiance = data.hourly.shortwave_radiation?.[i] || 0;
+        const ambientTemp = data.hourly.temperature_2m?.[i] || 25;
+        const cellTemp = this.calculateCellTemperature(ambientTemp, irradiance);
+        
+        const dcPower = this.calculateDCPower(irradiance, params.system_capacity, cellTemp);
+        const acPower = this.calculateACPower(dcPower);
+        
+        if (!hourlyByDate.has(dateStr)) {
+          hourlyByDate.set(dateStr, []);
+        }
+        
+        hourlyByDate.get(dateStr)!.push({
+          timestamp: date.toISOString(),
+          hour: hour.toString().padStart(2, '0') + ':00',
+          ac_output: acPower,
+          dc_output: dcPower,
+          irradiance: irradiance,
+          ambient_temp: ambientTemp,
+          cell_temp: cellTemp,
+        });
+      }
+      
+      console.log(`✅ Fetched extended hourly data for ${hourlyByDate.size} days`);
+      return hourlyByDate;
+      
+    } catch (error) {
+      console.error('❌ Extended hourly data fetch error:', error);
+      return new Map();
+    }
+  }
+
+  /**
    * Generate mock solar data for demo/fallback
    */
   private generateMockData(params: OpenMeteoParams): SolarDataPoint[] {

@@ -136,6 +136,7 @@ const IoTSensors = () => {
   const [historicalSolarData, setHistoricalSolarData] = useState<DailySolarDataPoint[]>([]);
   const [historicalLoading, setHistoricalLoading] = useState(true);
   const [forecastData, setForecastData] = useState<DailySolarDataPoint[]>([]);
+  const [extendedHourlyData, setExtendedHourlyData] = useState<Map<string, SolarDataPoint[]>>(new Map());
 
   // Site parameters for PVWatts (can be made configurable later)
   const [siteParams, setSiteParams] = useState({
@@ -238,18 +239,44 @@ const IoTSensors = () => {
         startDate.setFullYear(startDate.getFullYear() - 2); // Default 2 years for comprehensive data
       }
 
-      const [historical, forecast] = await Promise.all([
-        openMeteoService.fetchHistoricalDailyData(
-          siteParams,
-          startDate.toISOString().split('T')[0],
-          endDate.toISOString().split('T')[0]
-        ),
-        openMeteoService.fetchForecastData(siteParams)
-      ]);
+      // For forecast, only get the forecast data
+      if (viewMode === 'forecast') {
+        const forecast = await openMeteoService.fetchForecastData(siteParams);
+        setForecastData(forecast);
+        setHistoricalSolarData([]);
+        setExtendedHourlyData(new Map());
+        console.log(`📈 Loaded ${forecast.length} days forecast`);
+      } else if (viewMode === 'weekly' || viewMode === 'monthly') {
+        // For weekly/monthly, fetch extended hourly data for accurate aggregation
+        const daysToFetch = viewMode === 'weekly' ? 7 : 30;
+        const [extHourly, fallbackDaily] = await Promise.all([
+          openMeteoService.fetchExtendedHourlyData(siteParams, daysToFetch),
+          openMeteoService.fetchHistoricalDailyData(
+            siteParams,
+            startDate.toISOString().split('T')[0],
+            endDate.toISOString().split('T')[0]
+          ),
+        ]);
+        
+        setExtendedHourlyData(extHourly);
+        setHistoricalSolarData(fallbackDaily);
+        setForecastData([]);
+        console.log(`📈 Loaded extended hourly for ${extHourly.size} days + ${fallbackDaily.length} days fallback`);
+      } else {
+        // For yearly, use daily aggregates
+        const [historical] = await Promise.all([
+          openMeteoService.fetchHistoricalDailyData(
+            siteParams,
+            startDate.toISOString().split('T')[0],
+            endDate.toISOString().split('T')[0]
+          ),
+        ]);
 
-      setHistoricalSolarData(historical);
-      setForecastData(forecast);
-      console.log(`📈 Loaded ${historical.length} days historical + ${forecast.length} days forecast`);
+        setHistoricalSolarData(historical);
+        setExtendedHourlyData(new Map());
+        setForecastData([]);
+        console.log(`📈 Loaded ${historical.length} days historical`);
+      }
     } catch (error) {
       console.error('Error fetching solar data:', error);
       toast.error('Failed to load historical solar data');
@@ -483,23 +510,50 @@ const IoTSensors = () => {
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
-    if (viewMode === 'weekly') {
-      const last7 = orderedHistorical.slice(-7);
-      return last7.map((day) =>
-        buildPoint(
-          new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          day.ac_output,
-          day.dc_output,
-          day.irradiance,
-          day.ambient_temp,
-          day.cell_temp
-        )
-      );
-    }
-
-    if (viewMode === 'monthly') {
-      const last30 = orderedHistorical.slice(-30);
-      return last30.map((day) =>
+    // For weekly/monthly views, aggregate from extended hourly data for accuracy
+    if (viewMode === 'weekly' || viewMode === 'monthly') {
+      const daysToShow = viewMode === 'weekly' ? 7 : 30;
+      const dailyAggregates: DailySolarDataPoint[] = [];
+      
+      // Get list of dates we need
+      const today = new Date();
+      const dates: string[] = [];
+      for (let i = daysToShow - 1; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        dates.push(date.toISOString().split('T')[0]);
+      }
+      
+      // For each date, try to use extended hourly data, fall back to API daily data
+      dates.forEach(dateStr => {
+        const hourlyForDate = extendedHourlyData.get(dateStr);
+        
+        if (hourlyForDate && hourlyForDate.length > 0) {
+          // Aggregate from hourly data for accuracy
+          const acSum = hourlyForDate.reduce((sum, p) => sum + p.ac_output, 0);
+          const dcSum = hourlyForDate.reduce((sum, p) => sum + p.dc_output, 0);
+          const irrSum = hourlyForDate.reduce((sum, p) => sum + p.irradiance, 0);
+          const tempAvg = hourlyForDate.reduce((sum, p) => sum + p.ambient_temp, 0) / hourlyForDate.length;
+          const cellAvg = hourlyForDate.reduce((sum, p) => sum + p.cell_temp, 0) / hourlyForDate.length;
+          
+          dailyAggregates.push({
+            date: dateStr,
+            ac_output: acSum,
+            dc_output: dcSum,
+            irradiance: irrSum,
+            ambient_temp: tempAvg,
+            cell_temp: cellAvg,
+          });
+        } else {
+          // Fall back to API daily data
+          const apiDaily = historicalSolarData.find(d => d.date === dateStr);
+          if (apiDaily) {
+            dailyAggregates.push(apiDaily);
+          }
+        }
+      });
+      
+      return dailyAggregates.map((day) =>
         buildPoint(
           new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
           day.ac_output,
@@ -567,7 +621,7 @@ const IoTSensors = () => {
     }
 
     return [];
-  }, [solarData, historicalSolarData, forecastData, viewMode, dayNightFilter, selectedDate]);
+  }, [solarData, historicalSolarData, forecastData, extendedHourlyData, viewMode, dayNightFilter, selectedDate]);
 
   const chartUnits = useMemo(() => ({
     powerLabel: viewMode === 'hourly' ? 'Power (kW)' : viewMode === 'yearly' ? 'Energy (kWh/month)' : viewMode === 'forecast' ? 'Forecast Energy (kWh/day)' : 'Energy (kWh/day)',
