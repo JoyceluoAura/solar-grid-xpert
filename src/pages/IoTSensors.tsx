@@ -1204,187 +1204,6 @@ const IoTSensors = () => {
               </CardContent>
             </Card>
 
-            {/* Battery and Inverter Metrics */}
-            {batteryChartData.length > 0 && inverterChartData.length > 0 && (
-              <div className="grid md:grid-cols-2 gap-6">
-                <Card className="shadow-card border-emerald-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Battery className="w-5 h-5 text-emerald-500" />
-                      Battery Storage Sensors
-                    </CardTitle>
-                    <CardDescription>
-                      Live state-of-charge modelling derived from Open-Meteo irradiance and site load assumptions
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={batteryChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis
-                          dataKey="label"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis
-                          yAxisId="soc"
-                          domain={[0, 100]}
-                          label={{ value: 'State of Charge (%)', angle: -90, position: 'insideLeft', style: { fontSize: '11px' } }}
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis
-                          yAxisId="power"
-                          orientation="right"
-                          label={{ value: 'Net Power (kW)', angle: 90, position: 'insideRight', style: { fontSize: '11px' } }}
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px",
-                          }}
-                          formatter={(value: any, name: string) => [
-                            name.includes('Power') ? `${Number(value).toFixed(2)} kW` : `${Number(value).toFixed(1)}%`,
-                            name,
-                          ]}
-                        />
-                        <Legend />
-                        <Line
-                          yAxisId="soc"
-                          type="monotone"
-                          dataKey="stateOfCharge"
-                          stroke="#10b981"
-                          strokeWidth={2}
-                          dot={false}
-                          name="State of Charge"
-                        />
-                        <Line
-                          yAxisId="power"
-                          type="monotone"
-                          dataKey="netPower"
-                          stroke="#6366f1"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="Net Power"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                    <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
-                      <div className="p-3 rounded-lg bg-emerald-50 border">
-                        <p className="text-muted-foreground">Latest SoC</p>
-                        <p className="text-lg font-semibold text-emerald-600">
-                          {latestBatteryMetric ? `${latestBatteryMetric.stateOfCharge.toFixed(1)}%` : '--'}
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-blue-50 border">
-                        <p className="text-muted-foreground">Avg SoC</p>
-                        <p className="text-lg font-semibold text-blue-600">
-                          {deviceSummary ? `${deviceSummary.battery.avgSoc.toFixed(1)}%` : '--'}
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-amber-50 border">
-                        <p className="text-muted-foreground">Daily Throughput</p>
-                        <p className="text-lg font-semibold text-amber-600">
-                          {deviceSummary ? `${deviceSummary.battery.dailyThroughputKwh.toFixed(1)} kWh` : '--'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="shadow-card border-blue-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-blue-500" />
-                      Inverter Sensors
-                    </CardTitle>
-                    <CardDescription>
-                      Efficiency and AC output metrics generated from live DC/AC conversions of the Open-Meteo feed
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={inverterChartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis
-                          dataKey="label"
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis
-                          yAxisId="efficiency"
-                          domain={[80, 100]}
-                          label={{ value: 'Efficiency (%)', angle: -90, position: 'insideLeft', style: { fontSize: '11px' } }}
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <YAxis
-                          yAxisId="power"
-                          orientation="right"
-                          label={{ value: 'AC Output (kW)', angle: 90, position: 'insideRight', style: { fontSize: '11px' } }}
-                          style={{ fontSize: '11px' }}
-                          tick={{ fill: 'hsl(var(--muted-foreground))' }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px",
-                          }}
-                          formatter={(value: any, name: string) => [
-                            name.includes('Output') ? `${Number(value).toFixed(2)} kW` : `${Number(value).toFixed(1)}%`,
-                            name,
-                          ]}
-                        />
-                        <Legend />
-                        <Line
-                          yAxisId="efficiency"
-                          type="monotone"
-                          dataKey="efficiencyPct"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          dot={false}
-                          name="Efficiency"
-                        />
-                        <Line
-                          yAxisId="power"
-                          type="monotone"
-                          dataKey="acOutputKw"
-                          stroke="#f97316"
-                          strokeWidth={1.5}
-                          dot={false}
-                          name="AC Output"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                    <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
-                      <div className="p-3 rounded-lg bg-blue-50 border">
-                        <p className="text-muted-foreground">Peak Efficiency</p>
-                        <p className="text-lg font-semibold text-blue-600">
-                          {deviceSummary ? `${deviceSummary.inverter.peakEfficiencyPct.toFixed(1)}%` : '--'}
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-sky-50 border">
-                        <p className="text-muted-foreground">Avg Efficiency</p>
-                        <p className="text-lg font-semibold text-sky-600">
-                          {deviceSummary ? `${deviceSummary.inverter.avgEfficiencyPct.toFixed(1)}%` : '--'}
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-lg bg-indigo-50 border">
-                        <p className="text-muted-foreground">Daily Energy</p>
-                        <p className="text-lg font-semibold text-indigo-600">
-                          {deviceSummary ? `${deviceSummary.inverter.totalEnergyKwh.toFixed(1)} kWh` : '--'}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
             {/* Solar Performance Charts */}
             {displayData.length > 0 ? (
               <>
@@ -1638,6 +1457,187 @@ const IoTSensors = () => {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Battery and Inverter Metrics */}
+                {batteryChartData.length > 0 && inverterChartData.length > 0 && (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <Card className="shadow-card border-emerald-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Battery className="w-5 h-5 text-emerald-500" />
+                          Battery Storage Sensors
+                        </CardTitle>
+                        <CardDescription>
+                          Live state-of-charge modelling derived from Open-Meteo irradiance and site load assumptions
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={220}>
+                          <LineChart data={batteryChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis
+                              dataKey="label"
+                              style={{ fontSize: '11px' }}
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <YAxis
+                              yAxisId="soc"
+                              domain={[0, 100]}
+                              label={{ value: 'State of Charge (%)', angle: -90, position: 'insideLeft', style: { fontSize: '11px' } }}
+                              style={{ fontSize: '11px' }}
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <YAxis
+                              yAxisId="power"
+                              orientation="right"
+                              label={{ value: 'Net Power (kW)', angle: 90, position: 'insideRight', style: { fontSize: '11px' } }}
+                              style={{ fontSize: '11px' }}
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                              formatter={(value: any, name: string) => [
+                                name.includes('Power') ? `${Number(value).toFixed(2)} kW` : `${Number(value).toFixed(1)}%`,
+                                name,
+                              ]}
+                            />
+                            <Legend />
+                            <Line
+                              yAxisId="soc"
+                              type="monotone"
+                              dataKey="stateOfCharge"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              dot={false}
+                              name="State of Charge"
+                            />
+                            <Line
+                              yAxisId="power"
+                              type="monotone"
+                              dataKey="netPower"
+                              stroke="#6366f1"
+                              strokeWidth={1.5}
+                              dot={false}
+                              name="Net Power"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                        <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
+                          <div className="p-3 rounded-lg bg-emerald-50 border">
+                            <p className="text-muted-foreground">Latest SoC</p>
+                            <p className="text-lg font-semibold text-emerald-600">
+                              {latestBatteryMetric ? `${latestBatteryMetric.stateOfCharge.toFixed(1)}%` : '--'}
+                            </p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-blue-50 border">
+                            <p className="text-muted-foreground">Avg SoC</p>
+                            <p className="text-lg font-semibold text-blue-600">
+                              {deviceSummary ? `${deviceSummary.battery.avgSoc.toFixed(1)}%` : '--'}
+                            </p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-amber-50 border">
+                            <p className="text-muted-foreground">Daily Throughput</p>
+                            <p className="text-lg font-semibold text-amber-600">
+                              {deviceSummary ? `${deviceSummary.battery.dailyThroughputKwh.toFixed(1)} kWh` : '--'}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-card border-blue-200">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-blue-500" />
+                          Inverter Sensors
+                        </CardTitle>
+                        <CardDescription>
+                          Efficiency and AC output metrics generated from live DC/AC conversions of the Open-Meteo feed
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={220}>
+                          <LineChart data={inverterChartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                            <XAxis
+                              dataKey="label"
+                              style={{ fontSize: '11px' }}
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <YAxis
+                              yAxisId="efficiency"
+                              domain={[80, 100]}
+                              label={{ value: 'Efficiency (%)', angle: -90, position: 'insideLeft', style: { fontSize: '11px' } }}
+                              style={{ fontSize: '11px' }}
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <YAxis
+                              yAxisId="power"
+                              orientation="right"
+                              label={{ value: 'AC Output (kW)', angle: 90, position: 'insideRight', style: { fontSize: '11px' } }}
+                              style={{ fontSize: '11px' }}
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: "8px",
+                              }}
+                              formatter={(value: any, name: string) => [
+                                name.includes('Output') ? `${Number(value).toFixed(2)} kW` : `${Number(value).toFixed(1)}%`,
+                                name,
+                              ]}
+                            />
+                            <Legend />
+                            <Line
+                              yAxisId="efficiency"
+                              type="monotone"
+                              dataKey="efficiencyPct"
+                              stroke="#3b82f6"
+                              strokeWidth={2}
+                              dot={false}
+                              name="Efficiency"
+                            />
+                            <Line
+                              yAxisId="power"
+                              type="monotone"
+                              dataKey="acOutputKw"
+                              stroke="#f97316"
+                              strokeWidth={1.5}
+                              dot={false}
+                              name="AC Output"
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                        <div className="mt-4 grid grid-cols-3 gap-4 text-xs">
+                          <div className="p-3 rounded-lg bg-blue-50 border">
+                            <p className="text-muted-foreground">Peak Efficiency</p>
+                            <p className="text-lg font-semibold text-blue-600">
+                              {deviceSummary ? `${deviceSummary.inverter.peakEfficiencyPct.toFixed(1)}%` : '--'}
+                            </p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-sky-50 border">
+                            <p className="text-muted-foreground">Avg Efficiency</p>
+                            <p className="text-lg font-semibold text-sky-600">
+                              {deviceSummary ? `${deviceSummary.inverter.avgEfficiencyPct.toFixed(1)}%` : '--'}
+                            </p>
+                          </div>
+                          <div className="p-3 rounded-lg bg-indigo-50 border">
+                            <p className="text-muted-foreground">Daily Energy</p>
+                            <p className="text-lg font-semibold text-indigo-600">
+                              {deviceSummary ? `${deviceSummary.inverter.totalEnergyKwh.toFixed(1)} kWh` : '--'}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
                 {/* Performance Summary Card */}
                 <Card className="shadow-card border-green-200 bg-gradient-to-r from-green-50 to-blue-50">
