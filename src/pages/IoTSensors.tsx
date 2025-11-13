@@ -455,6 +455,9 @@ const IoTSensors = () => {
 
   // Filter solar data based on date and day/night
   const displayData = useMemo<DisplayDataPoint[]>(() => {
+    const memoRunId = Math.random().toString(36).substring(7);
+    console.log(`🔵 MEMO RUN [${memoRunId}]: viewMode=${viewMode}, forecastData.length=${forecastData.length}`);
+    
     const buildPoint = (
       label: string,
       acValue: number,
@@ -620,12 +623,10 @@ const IoTSensors = () => {
 
     // Forecast view
     if (viewMode === 'forecast') {
-      console.log('📊 DISPLAY MEMO RUNNING - Forecast view');
-      console.log('📊 forecastData length:', forecastData.length);
-      console.log('📊 forecastData array:', forecastData);
+      console.log(`🔵 [${memoRunId}] Forecast branch - forecastData:`, forecastData.length, 'items');
       
       if (forecastData.length > 0) {
-        console.log('📊 First forecast item:', forecastData[0]);
+        console.log(`🔵 [${memoRunId}] Mapping forecast data...`);
         const result = forecastData.map((day) =>
           buildPoint(
             new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
@@ -636,12 +637,13 @@ const IoTSensors = () => {
             day.cell_temp
           )
         );
-        console.log('📊 Successfully mapped', result.length, 'forecast points');
+        console.log(`🔵 [${memoRunId}] ✅ Returning ${result.length} forecast points`);
         return result;
       }
-      console.log('📊 No forecast data to display - returning empty array');
+      console.log(`🔵 [${memoRunId}] ⚠️ No forecast data - returning empty array`);
     }
 
+    console.log(`🔵 [${memoRunId}] ⚠️ Not forecast view or end of memo - returning empty array`);
     return [];
   }, [solarData, historicalSolarData, forecastData, extendedHourlyData, viewMode, dayNightFilter, selectedDate]);
 
