@@ -684,8 +684,8 @@ const IoTSensors = () => {
   }, [solarData, historicalSolarData, forecastData, extendedHourlyData, viewMode, dayNightFilter, selectedDate]);
 
   const chartUnits = useMemo(() => ({
-    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : viewMode === 'yearly' ? 'Total Energy (kWh/month)' : viewMode === 'forecast' ? 'Forecast Energy (kWh/day)' : 'Energy (kWh/day)',
-    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : viewMode === 'yearly' ? 'Total Irradiance (Wh/m²/month)' : viewMode === 'forecast' ? 'Forecast Irradiance (Wh/m²/day)' : 'Irradiance (Wh/m²/day)',
+    powerLabel: viewMode === 'hourly' ? 'Power (kW)' : viewMode === 'yearly' ? 'Total Energy (kWh/month)' : viewMode === 'forecast' ? 'Total Forecast Energy (kWh/day)' : 'Total Energy (kWh/day)',
+    irradianceLabel: viewMode === 'hourly' ? 'Irradiance (W/m²)' : viewMode === 'yearly' ? 'Total Irradiance (Wh/m²/month)' : viewMode === 'forecast' ? 'Total Forecast Irradiance (Wh/m²/day)' : 'Total Irradiance (Wh/m²/day)',
     tooltipPowerSuffix: viewMode === 'hourly' ? ' kW' : viewMode === 'yearly' ? ' kWh/month' : ' kWh/day',
     tooltipIrrSuffix: viewMode === 'hourly' ? ' W/m²' : viewMode === 'yearly' ? ' Wh/m²/month' : ' Wh/m²/day',
   }), [viewMode]);
