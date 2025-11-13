@@ -445,110 +445,192 @@ class OpenMeteoService {
   }
 
   /**
-   * Fetch forecast data (7 days ahead) using historical patterns
+   * Fetch forecast data (90 days / 3 months ahead) using historical patterns, weather forecasts, and panel health
    */
   async fetchForecastData(params: OpenMeteoParams): Promise<DailySolarDataPoint[]> {
     try {
-      // Get historical data for the same week from previous years to establish patterns
       const today = new Date();
-      const lastYear = new Date(today);
-      lastYear.setFullYear(lastYear.getFullYear() - 1);
+      const forecastEndDate = new Date(today);
+      forecastEndDate.setDate(forecastEndDate.getDate() + 90); // 3 months
       
-      const twoYearsAgo = new Date(today);
-      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+      // Fetch historical data for the same 3-month period from previous 3 years
+      const historicalPeriods: Array<{start: Date, end: Date}> = [];
+      for (let yearOffset = 1; yearOffset <= 3; yearOffset++) {
+        const histStart = new Date(today);
+        histStart.setFullYear(histStart.getFullYear() - yearOffset);
+        const histEnd = new Date(histStart);
+        histEnd.setDate(histEnd.getDate() + 90);
+        historicalPeriods.push({ start: histStart, end: histEnd });
+      }
       
-      // Fetch historical radiation data to establish baseline patterns
-      const historicalUrl = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}` +
-        `&start_date=${twoYearsAgo.toISOString().split('T')[0]}` +
-        `&end_date=${lastYear.toISOString().split('T')[0]}` +
-        `&daily=shortwave_radiation_sum,temperature_2m_mean&timezone=auto`;
+      // Fetch all historical data periods
+      const historicalUrls = historicalPeriods.map(period => 
+        `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}` +
+        `&start_date=${period.start.toISOString().split('T')[0]}` +
+        `&end_date=${period.end.toISOString().split('T')[0]}` +
+        `&daily=shortwave_radiation_sum,temperature_2m_mean,temperature_2m_max,cloud_cover_mean&timezone=auto`
+      );
       
-      // Fetch weather forecast
+      // Fetch 16-day weather forecast (max available from Open-Meteo)
       const forecastUrl = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}` +
-        `&daily=temperature_2m_mean,temperature_2m_max,cloud_cover_mean&forecast_days=7&timezone=auto`;
+        `&daily=temperature_2m_mean,temperature_2m_max,cloud_cover_mean,precipitation_sum&forecast_days=16&timezone=auto`;
 
-      const [historicalResponse, forecastResponse] = await Promise.all([
-        fetch(historicalUrl).catch(() => null),
-        fetch(forecastUrl)
+      const allResponses = await Promise.all([
+        ...historicalUrls.map(url => fetch(url).catch(() => null)),
+        fetch(forecastUrl).catch(() => null)
       ]);
-
-      if (!forecastResponse.ok) {
-        console.warn(`Forecast API error: ${forecastResponse.statusText}, using mock forecast`);
-        return this.generateMockForecastData(params);
-      }
-
-      const forecastData = await forecastResponse.json();
       
-      // Calculate historical average irradiance by month
-      const monthlyAvgIrradiance = new Map<number, number>();
-      if (historicalResponse && historicalResponse.ok) {
-        const historicalData = await historicalResponse.json();
-        const monthGroups = new Map<number, number[]>();
-        
-        for (let i = 0; i < (historicalData.daily?.time?.length || 0); i++) {
-          const date = new Date(historicalData.daily.time[i]);
-          const month = date.getMonth();
-          const irradiance = historicalData.daily.shortwave_radiation_sum[i];
-          
-          if (!monthGroups.has(month)) {
-            monthGroups.set(month, []);
+      const weatherForecastResponse = allResponses[allResponses.length - 1];
+      const historicalResponses = allResponses.slice(0, -1);
+
+      // Build daily historical averages by day-of-year
+      const dayOfYearStats = new Map<number, {irradiance: number[], temp: number[], clouds: number[]}>();
+      
+      for (const response of historicalResponses) {
+        if (response && response.ok) {
+          const data = await response.json();
+          for (let i = 0; i < (data.daily?.time?.length || 0); i++) {
+            const date = new Date(data.daily.time[i]);
+            const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (!dayOfYearStats.has(dayOfYear)) {
+              dayOfYearStats.set(dayOfYear, { irradiance: [], temp: [], clouds: [] });
+            }
+            const stats = dayOfYearStats.get(dayOfYear)!;
+            stats.irradiance.push(data.daily.shortwave_radiation_sum[i] || 5000);
+            stats.temp.push(data.daily.temperature_2m_mean[i] || 26);
+            stats.clouds.push(data.daily.cloud_cover_mean[i] || 40);
           }
-          monthGroups.get(month)!.push(irradiance);
         }
-        
-        // Calculate averages
-        monthGroups.forEach((values, month) => {
-          const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-          monthlyAvgIrradiance.set(month, avg);
-        });
       }
+
+      // Get panel health factor from solar issues
+      const panelHealthFactor = await this.calculatePanelHealthFactor(params.lat, params.lon);
+      console.log(`📊 Panel health factor: ${(panelHealthFactor * 100).toFixed(1)}% (1.0 = perfect health)`);
 
       const days: DailySolarDataPoint[] = [];
-      const tempMean: number[] = forecastData.daily?.temperature_2m_mean || [];
-      const tempMax: number[] = forecastData.daily?.temperature_2m_max || [];
-      const cloudCover: number[] = forecastData.daily?.cloud_cover_mean || [];
-
       const totalCapacity = params.system_capacity;
 
-      for (let i = 0; i < (forecastData.daily?.time?.length || 0); i++) {
-        const date = forecastData.daily.time[i];
-        const forecastDate = new Date(date);
-        const month = forecastDate.getMonth();
-        const meanTemp = tempMean[i] ?? 26;
-        const maxTemp = tempMax[i] ?? (meanTemp + 4);
-        const clouds = cloudCover[i] ?? 40; // Default 40% cloud cover
+      // Parse weather forecast data
+      let weatherForecast: any = null;
+      if (weatherForecastResponse && weatherForecastResponse.ok) {
+        weatherForecast = await weatherForecastResponse.json();
+      }
 
-        // Use historical average for this month, or fall back to temperature-based estimate
-        let baseIrradiance = monthlyAvgIrradiance.get(month) || (5000 + (meanTemp - 20) * 100);
+      // Generate 90-day forecast
+      for (let dayOffset = 1; dayOffset <= 90; dayOffset++) {
+        const forecastDate = new Date(today);
+        forecastDate.setDate(forecastDate.getDate() + dayOffset);
+        const dateStr = forecastDate.toISOString().split('T')[0];
+        const dayOfYear = Math.floor((forecastDate.getTime() - new Date(forecastDate.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
         
-        // Adjust for cloud cover (more clouds = less irradiance)
-        const cloudFactor = 1 - (clouds / 200); // 0% clouds = 1.0, 100% clouds = 0.5
-        const estimatedIrradiance = Math.max(1000, baseIrradiance * cloudFactor);
+        // Get historical stats for this day of year
+        const stats = dayOfYearStats.get(dayOfYear);
+        const avgHistoricalIrradiance = stats?.irradiance.length 
+          ? stats.irradiance.reduce((a, b) => a + b, 0) / stats.irradiance.length 
+          : 5000;
+        const avgHistoricalTemp = stats?.temp.length 
+          ? stats.temp.reduce((a, b) => a + b, 0) / stats.temp.length 
+          : 27;
+        const avgHistoricalClouds = stats?.clouds.length 
+          ? stats.clouds.reduce((a, b) => a + b, 0) / stats.clouds.length 
+          : 40;
+
+        // Use weather forecast for first 16 days, then use historical patterns with seasonal variation
+        let meanTemp: number;
+        let maxTemp: number;
+        let clouds: number;
+        let precipitation: number = 0;
+
+        if (dayOffset <= 16 && weatherForecast?.daily) {
+          const idx = dayOffset - 1;
+          meanTemp = weatherForecast.daily.temperature_2m_mean?.[idx] ?? avgHistoricalTemp;
+          maxTemp = weatherForecast.daily.temperature_2m_max?.[idx] ?? (meanTemp + 4);
+          clouds = weatherForecast.daily.cloud_cover_mean?.[idx] ?? avgHistoricalClouds;
+          precipitation = weatherForecast.daily.precipitation_sum?.[idx] ?? 0;
+        } else {
+          // Use historical patterns with random variation for days 17-90
+          const seasonalVariation = Math.sin((dayOfYear / 365) * 2 * Math.PI) * 2;
+          const randomVariation = (Math.random() - 0.5) * 4;
+          meanTemp = avgHistoricalTemp + seasonalVariation + randomVariation;
+          maxTemp = meanTemp + 3 + Math.random() * 3;
+          clouds = Math.max(0, Math.min(100, avgHistoricalClouds + (Math.random() - 0.5) * 20));
+          precipitation = Math.random() < 0.2 ? Math.random() * 10 : 0; // 20% chance of rain
+        }
+
+        // Calculate irradiance with weather and panel health factors
+        let baseIrradiance = avgHistoricalIrradiance;
+        
+        // Cloud cover impact
+        const cloudFactor = 1 - (clouds / 200);
+        
+        // Precipitation impact (rain reduces irradiance)
+        const rainFactor = precipitation > 0 ? Math.max(0.5, 1 - (precipitation / 50)) : 1.0;
+        
+        // Temperature impact on efficiency
+        const tempEfficiencyFactor = 1 - ((meanTemp - 25) * 0.004);
+        
+        // Apply all factors including panel health
+        const estimatedIrradiance = Math.max(1000, baseIrradiance * cloudFactor * rainFactor * panelHealthFactor);
         
         const irradianceKwhM2 = estimatedIrradiance / 1000;
-
         const cellTemp = this.calculateCellTemperature(meanTemp, irradianceKwhM2 * 1000 / 24);
 
-        // Use more conservative efficiency for forecasts
-        const dcEnergyKwh = Math.max(0, totalCapacity * irradianceKwhM2 * 0.20);
+        // Calculate energy with all efficiency factors
+        const dcEnergyKwh = Math.max(0, totalCapacity * irradianceKwhM2 * 0.20 * tempEfficiencyFactor);
         const acEnergyKwh = this.calculateACPower(dcEnergyKwh);
 
         days.push({
-          date,
+          date: dateStr,
           ac_output: Number(acEnergyKwh.toFixed(2)),
           dc_output: Number(dcEnergyKwh.toFixed(2)),
           irradiance: Math.round(estimatedIrradiance),
           ambient_temp: Number(meanTemp.toFixed(1)),
-          cell_temp: Number(((cellTemp + maxTemp) / 2).toFixed(1)),
+          cell_temp: Number(cellTemp.toFixed(1)),
         });
       }
 
-      console.log(`✅ Fetched ${days.length} days of forecast data (based on historical patterns)`);
+      console.log(`✅ Fetched ${days.length} days of forecast data (3-year historical + weather + panel health)`);
       return days;
     } catch (error) {
       console.error('❌ Forecast data fetch error:', error);
       console.log('⚠️ Using mock forecast data as fallback');
       return this.generateMockForecastData(params);
+    }
+  }
+
+  /**
+   * Calculate panel health factor based on detected issues (0-1 scale)
+   */
+  private async calculatePanelHealthFactor(lat: number, lon: number): Promise<number> {
+    try {
+      // Import dynamically to avoid circular dependencies
+      const { solarIssueService } = await import('@/services/solarIssues');
+      const { nasaPowerService } = await import('@/services/nasaPower');
+      
+      const weather = await nasaPowerService.fetchWeatherData({ latitude: lat, longitude: lon });
+      const issues = solarIssueService.generateSiteIssues('SGX-FORECAST', weather, 6);
+      
+      if (issues.length === 0) return 1.0; // Perfect health
+      
+      // Calculate weighted health reduction based on severity and energy loss
+      let totalHealthReduction = 0;
+      const severityWeights = { critical: 1.0, high: 0.7, medium: 0.4, low: 0.2, normal: 0 };
+      
+      for (const issue of issues) {
+        const severityWeight = severityWeights[issue.severity as keyof typeof severityWeights] || 0;
+        const energyLossFactor = issue.energy_loss_percent / 100;
+        totalHealthReduction += severityWeight * energyLossFactor;
+      }
+      
+      // Average reduction across all issues
+      const avgReduction = totalHealthReduction / issues.length;
+      
+      // Return health factor (1.0 = perfect, lower = degraded)
+      return Math.max(0.5, 1 - avgReduction); // Minimum 50% health
+    } catch (error) {
+      console.warn('Could not calculate panel health, assuming 95% health:', error);
+      return 0.95; // Default to slight degradation if calculation fails
     }
   }
 
@@ -592,23 +674,30 @@ class OpenMeteoService {
   }
 
   /**
-   * Generate mock forecast data
+   * Generate mock forecast data (90 days)
    */
   private generateMockForecastData(params: OpenMeteoParams): DailySolarDataPoint[] {
     const days: DailySolarDataPoint[] = [];
     const today = new Date();
+    const panelHealthFactor = 0.92; // Assume 92% health for mock data
 
-    for (let i = 1; i <= 7; i++) {
+    for (let i = 1; i <= 90; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
+      const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
 
+      // Seasonal variation based on day of year
+      const seasonalFactor = 0.85 + Math.sin((dayOfYear / 365) * 2 * Math.PI) * 0.15;
       const randomVariation = 0.9 + Math.random() * 0.2;
-      const irradiance = Math.round(5300 * randomVariation);
-      const meanTemp = 26 + Math.random() * 6;
+      const weatherVariation = Math.random() < 0.15 ? 0.6 : 1.0; // 15% chance of poor weather
+      
+      const irradiance = Math.round(5300 * seasonalFactor * randomVariation * weatherVariation * panelHealthFactor);
+      const meanTemp = 26 + Math.random() * 6 + Math.sin((dayOfYear / 365) * 2 * Math.PI) * 2;
       const cellTemp = this.calculateCellTemperature(meanTemp, irradiance / 24);
 
-      const dcEnergy = params.system_capacity * (irradiance / 1000) * 0.22;
+      const tempEfficiencyFactor = 1 - ((meanTemp - 25) * 0.004);
+      const dcEnergy = params.system_capacity * (irradiance / 1000) * 0.22 * tempEfficiencyFactor;
       const acEnergy = this.calculateACPower(dcEnergy);
 
       days.push({
