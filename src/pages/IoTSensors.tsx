@@ -607,17 +607,24 @@ const IoTSensors = () => {
     }
 
     // Forecast view
-    if (viewMode === 'forecast' && forecastData.length > 0) {
-      return forecastData.map((day) =>
-        buildPoint(
-          new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          day.ac_output,
-          day.dc_output,
-          day.irradiance,
-          day.ambient_temp,
-          day.cell_temp
-        )
-      );
+    if (viewMode === 'forecast') {
+      console.log('📊 Forecast view - forecastData:', forecastData.length, 'items');
+      if (forecastData.length > 0) {
+        console.log('📊 First forecast item:', forecastData[0]);
+        const result = forecastData.map((day) =>
+          buildPoint(
+            new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+            day.ac_output,
+            day.dc_output,
+            day.irradiance,
+            day.ambient_temp,
+            day.cell_temp
+          )
+        );
+        console.log('📊 Mapped forecast points:', result.length, 'points');
+        return result;
+      }
+      console.log('📊 No forecast data to display');
     }
 
     return [];
