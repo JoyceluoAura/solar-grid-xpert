@@ -261,9 +261,9 @@ const IoTSensors = () => {
         console.log(`📈 Loaded ${forecast.length} days forecast - state should update now`);
         setHistoricalLoading(false); // Set loading to false before return
         return; // Early return to prevent further execution
-      } else if (viewMode === 'weekly' || viewMode === 'monthly') {
-        // For weekly/monthly, fetch extended hourly data for accurate aggregation
-        const daysToFetch = viewMode === 'weekly' ? 7 : 30;
+      } else if (viewMode === 'weekly' || viewMode === 'monthly' || viewMode === 'yearly') {
+        // For weekly/monthly/yearly, fetch extended hourly data for accurate aggregation
+        const daysToFetch = viewMode === 'weekly' ? 7 : viewMode === 'monthly' ? 30 : 365;
         const [extHourly, fallbackDaily] = await Promise.all([
           openMeteoService.fetchExtendedHourlyData(siteParams, daysToFetch),
           openMeteoService.fetchHistoricalDailyData(
@@ -278,7 +278,7 @@ const IoTSensors = () => {
         setForecastData([]);
         console.log(`📈 Loaded extended hourly for ${extHourly.size} days + ${fallbackDaily.length} days fallback`);
       } else {
-        // For yearly, use daily aggregates
+        // For other views, use daily aggregates
         const [historical] = await Promise.all([
           openMeteoService.fetchHistoricalDailyData(
             siteParams,
