@@ -232,7 +232,9 @@ const IoTSensors = () => {
   };
 
   const fetchHistoricalSolarData = async () => {
+    const callStack = new Error().stack;
     console.log('📥 fetchHistoricalSolarData called with viewMode:', viewMode);
+    console.log('📥 Call stack:', callStack?.split('\n').slice(0, 5).join('\n'));
     try {
       setHistoricalLoading(true);
       const endDate = new Date();
@@ -257,6 +259,7 @@ const IoTSensors = () => {
         setHistoricalSolarData([]);
         setExtendedHourlyData(new Map());
         console.log(`📈 Loaded ${forecast.length} days forecast - state should update now`);
+        setHistoricalLoading(false); // Set loading to false before return
         return; // Early return to prevent further execution
       } else if (viewMode === 'weekly' || viewMode === 'monthly') {
         // For weekly/monthly, fetch extended hourly data for accurate aggregation
