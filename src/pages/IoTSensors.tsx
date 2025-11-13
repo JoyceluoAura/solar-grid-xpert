@@ -520,7 +520,8 @@ const IoTSensors = () => {
       );
     }
 
-    if (!historicalSolarData.length) {
+    if (!historicalSolarData.length && viewMode !== 'forecast') {
+      console.log(`🔵 [${memoRunId}] No historical data and not forecast mode - returning empty`);
       return [];
     }
 
