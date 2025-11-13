@@ -451,12 +451,10 @@ const IoTSensors = () => {
 
     if (viewMode === 'hourly') {
       let filtered = solarData;
-      if (selectedDate) {
-        filtered = filtered.filter((point) => point.timestamp.startsWith(selectedDate));
-      }
-      if (!filtered.length) {
-        filtered = solarData;
-      }
+      
+      // Don't filter by selectedDate in hourly view - we want rolling 24 hours
+      // The selectedDate filter is only useful for historical daily views
+      
       if (dayNightFilter !== 'all') {
         filtered = filtered.filter((dataPoint) => {
           const hour = parseInt(dataPoint.hour.split(':')[0]);
