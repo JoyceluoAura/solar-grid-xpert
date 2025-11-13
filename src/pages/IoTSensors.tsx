@@ -172,6 +172,14 @@ const IoTSensors = () => {
     fetchHistoricalSolarData();
   }, [viewMode]); // Refetch when view mode changes
 
+  // Debug: Track forecastData changes
+  useEffect(() => {
+    console.log('🔄 REACT STATE UPDATE: forecastData changed to', forecastData.length, 'items');
+    if (forecastData.length > 0) {
+      console.log('🔄 First item in state:', forecastData[0]);
+    }
+  }, [forecastData]);
+
   // Fetch weather and issues data on mount
   useEffect(() => {
     fetchWeatherAndIssues();
