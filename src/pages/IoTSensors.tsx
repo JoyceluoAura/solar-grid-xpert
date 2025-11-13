@@ -488,9 +488,9 @@ const IoTSensors = () => {
       return last7.map((day) =>
         buildPoint(
           new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          day.ac_output / 24,
-          day.dc_output / 24,
-          day.irradiance / 24,
+          day.ac_output,
+          day.dc_output,
+          day.irradiance,
           day.ambient_temp,
           day.cell_temp
         )
@@ -502,9 +502,9 @@ const IoTSensors = () => {
       return last30.map((day) =>
         buildPoint(
           new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-          day.ac_output / 24,
-          day.dc_output / 24,
-          day.irradiance / 24,
+          day.ac_output,
+          day.dc_output,
+          day.irradiance,
           day.ambient_temp,
           day.cell_temp
         )
