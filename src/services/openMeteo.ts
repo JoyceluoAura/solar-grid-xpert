@@ -153,18 +153,11 @@ class OpenMeteoService {
       console.log('🔄 Fetching fresh data from Open-Meteo APIs...');
 
       const now = new Date();
-      const endDate = new Date();
-      const startDate = new Date(endDate);
-      startDate.setHours(startDate.getHours() - 23); // Last 24 hours including current
-
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
       const currentHour = now.getHours();
-
-      // Always try to fetch both archive (yesterday's complete data) and forecast (today's data including current hour)
+      const todayStr = now.toISOString().split('T')[0];
       const yesterdayStr = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      // Fetch archive data for yesterday and forecast data for today (includes current hour)
+
+      // Fetch archive data for yesterday and forecast data for today
       const archiveUrl = `${this.archiveUrl}?latitude=${params.lat}&longitude=${params.lon}&start_date=${yesterdayStr}&end_date=${yesterdayStr}&hourly=shortwave_radiation&timezone=auto`;
       const forecastUrl = `${this.weatherUrl}?latitude=${params.lat}&longitude=${params.lon}&hourly=shortwave_radiation,temperature_2m&forecast_days=1&timezone=auto`;
 
@@ -175,7 +168,7 @@ class OpenMeteoService {
 
       let hourlyData: SolarDataPoint[] = [];
 
-      // Get yesterday's data from archive
+      // Get yesterday's data from archive - only from (currentHour+1) onwards to give us exactly 24 hours
       if (archiveResponse && archiveResponse.ok) {
         const archiveData = await archiveResponse.json();
         const dataLength = archiveData.hourly?.time?.length || 0;
@@ -183,8 +176,14 @@ class OpenMeteoService {
         for (let i = 0; i < dataLength; i++) {
           const timestamp = archiveData.hourly.time[i];
           const date = new Date(timestamp);
+          const hour = date.getHours();
+          
+          // Only include hours after currentHour from yesterday
+          // e.g., if current hour is 7, include hours 8-23 from yesterday
+          if (hour <= currentHour) continue;
+          
           const hourMatch = timestamp.match(/T(\d{2}):/);
-          const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
+          const localHour = hourMatch ? hourMatch[1] + ':00' : hour.toString().padStart(2, '0') + ':00';
           
           const irradiance = archiveData.hourly.shortwave_radiation?.[i] || 0;
           const ambientTemp = 25; // Default temp
@@ -210,16 +209,18 @@ class OpenMeteoService {
         const forecastData: OpenMeteoResponse = await forecastResponse.json();
         const dataLength = forecastData.hourly?.time?.length || 0;
         
-        // Only process up to current hour for today
-        for (let i = 0; i <= currentHour && i < dataLength; i++) {
+        // Process from hour 0 to current hour (inclusive)
+        for (let i = 0; i < dataLength; i++) {
           const timestamp = forecastData.hourly.time[i];
           const date = new Date(timestamp);
+          const hour = date.getHours();
           
-          // Only include today's data
-          if (date.toISOString().split('T')[0] !== endDateStr) continue;
+          // Only include today's data up to and including current hour
+          if (date.toISOString().split('T')[0] !== todayStr) continue;
+          if (hour > currentHour) break;
           
           const hourMatch = timestamp.match(/T(\d{2}):/);
-          const localHour = hourMatch ? hourMatch[1] + ':00' : date.getHours().toString().padStart(2, '0') + ':00';
+          const localHour = hourMatch ? hourMatch[1] + ':00' : hour.toString().padStart(2, '0') + ':00';
           
           const irradiance = forecastData.hourly.shortwave_radiation?.[i] || 0;
           const ambientTemp = forecastData.hourly.temperature_2m?.[i] || 25;
@@ -239,9 +240,6 @@ class OpenMeteoService {
           });
         }
       }
-
-      // Keep only last 24 hours
-      hourlyData = hourlyData.slice(-24);
       
       console.log(`✅ Fetched ${hourlyData.length} hours (${hourlyData.length > 0 ? hourlyData[0].hour : '?'} to ${hourlyData.length > 0 ? hourlyData[hourlyData.length - 1].hour : '?'})`);
 
